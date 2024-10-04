@@ -1,32 +1,21 @@
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter_project/chatting.dart';
+import 'home_page.dart';  // home_page.dart 파일을 import 합니다.
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized(); // Flutter 프레임워크 초기화
-  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]); // 예시 코드
-
-  runApp(const MyApp()); // 앱 구동
+  runApp(MyApp());
 }
 
-class MyApp extends StatelessWidget { //메인페이지 생성
-  const MyApp({Key? key}) : super(key: key);
+class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-
     return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(actions: [Icon(Icons.star)], title: Text('앱임'),
-          leading: Icon(Icons.star),
-        ),
-        body: SizedBox(
-          child: IconButton(icon: Icon(Icons.star), onPressed: (){},
-
-        )
-        )
-
-        ),
-      );
-
+      title: 'GNU Music App',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: chatting(),  // HomePage 위젯을 사용합니다.
+    );
   }
 }
-
