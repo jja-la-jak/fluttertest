@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'custom_scaffold.dart';  // custom_scaffold.dart 파일을 import 합니다.
+import '../modules/custom_scaffold.dart';  // custom_scaffold.dart 파일을 import 합니다.
 
 class HomePage extends StatelessWidget {
   @override
