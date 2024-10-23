@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/widgets/google_sign_in_button.dart';
 import 'package:flutter_project/screens/home_screen.dart';
+import 'package:flutter_project/screens/chatting.dart';
 
 class LoginScreen extends StatelessWidget {
   @override
@@ -21,7 +22,7 @@ class LoginScreen extends StatelessWidget {
             GoogleSignInButton(
               onSignInSuccess: () {
                 Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => HomeScreen()),
+                  MaterialPageRoute(builder: (context) => Chatting()),
                 );
               },
             ),

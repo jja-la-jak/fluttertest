@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/screens/chatting.dart';
-import 'screens/home_page.dart';  // home_page.dart 파일을 import 합니다.
+import 'package:flutter_project/screens/playlist_page.dart';
 import 'package:flutter_project/screens/login_screen.dart';
 import 'package:flutter_project/screens/splash_screen.dart';
 

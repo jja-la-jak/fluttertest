@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
-import 'package:flutter_project/modules/search_music.dart';
+import '../modules/search_music.dart';
+import 'youtube_player_screen.dart';  // YouTube 플레이어 import
 
 class SecondScreen extends StatefulWidget {
   @override
@@ -96,54 +96,6 @@ class _SecondScreenState extends State<SecondScreen> {
   @override
   void dispose() {
     _searchController.dispose();
-    super.dispose();
-  }
-}
-
-class YoutubePlayerScreen extends StatefulWidget {
-  final String youtubeUrl;
-
-  YoutubePlayerScreen({required this.youtubeUrl});
-
-  @override
-  _YoutubePlayerScreenState createState() => _YoutubePlayerScreenState();
-}
-
-class _YoutubePlayerScreenState extends State<YoutubePlayerScreen> {
-  late YoutubePlayerController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    final videoId = YoutubePlayer.convertUrlToId(widget.youtubeUrl);
-    print(videoId);
-    _controller = YoutubePlayerController(
-      initialVideoId: videoId!,
-      flags: YoutubePlayerFlags(
-        autoPlay: true,
-        mute: false,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('YouTube Player'),
-      ),
-      body: Center(
-        child: YoutubePlayer(
-          controller: _controller,
-          showVideoProgressIndicator: true,
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
     super.dispose();
   }
 }

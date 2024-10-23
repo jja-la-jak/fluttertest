@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/screens/SecondScreen.dart';
-import 'package:flutter_project/modules/custom_scaffold1.dart';
+import 'package:flutter_project/modules/custom_scaffold.dart';
 
 class Chatting extends StatefulWidget {
   const Chatting({Key? key}) : super(key: key);
