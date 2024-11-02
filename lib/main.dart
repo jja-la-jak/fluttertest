@@ -9,10 +9,12 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'GNU Music App',
+      navigatorKey: _navigatorKey,
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import '../modules/search_music.dart';
+import '../service/music_service.dart';
 import 'youtube_player_screen.dart';  // YouTube 플레이어 import
 
 class SecondScreen extends StatefulWidget {

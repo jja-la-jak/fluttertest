@@ -96,19 +96,13 @@ class PlaylistMusicDto {
   });
 
   factory PlaylistMusicDto.fromJson(Map<String, dynamic> json) {
-    try {
-      return PlaylistMusicDto(
-        musicId: json['id'] ?? 0, // 'musicId' 대신 'id'를 사용할 수 있음
-        title: json['title'] ?? '',
-        artist: json['artist'] ?? '',
-        url: json['url'] ?? '',
-        viewCount: json['viewCount'] ?? 0,
-      );
-    } catch (e) {
-      print('Error parsing PlaylistMusicDto: $e');
-      print('JSON data: $json');
-      rethrow;
-    }
+    return PlaylistMusicDto(
+      musicId: json['id'] ?? 0,  // 'musicId' 대신 'id' 사용
+      title: json['title'] ?? '',
+      artist: json['artist'] ?? '',
+      url: json['url'] ?? '',
+      viewCount: json['viewCount'] ?? 0,
+    );
   }
 }
 

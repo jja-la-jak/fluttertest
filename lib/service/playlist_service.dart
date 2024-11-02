@@ -1,9 +1,11 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../modules/playlist_models.dart';
+import '../services/token_storage.dart';
 
 class PlaylistService {
   static const String baseUrl = 'https://gnumusic.shop/api';
+  final TokenStorage _tokenStorage = TokenStorage();
 
   Future<PlaylistPreViewDto> createPlaylist(String accessToken, String playlistName) async {
     final response = await http.post(
@@ -29,7 +31,7 @@ class PlaylistService {
     }
   }
 
-  Future<PlaylistPreViewListDto> getPlaylistPreViewList(String accessToken, int page) async {
+  Future<PlaylistPreViewListDto> getPlaylistPreViewList(String accessToken) async {
     final response = await http.get(
       Uri.parse('$baseUrl/playlists'),
       headers: {
@@ -51,39 +53,50 @@ class PlaylistService {
   }
 
   Future<List<PlaylistMusicDto>> getPlaylistMusics(String accessToken, int playlistId) async {
-    try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/playlists/$playlistId/musics'),
+    final response = await http.get(
+      Uri.parse('$baseUrl/playlists/$playlistId/musics'),
+      headers: {
+        'Authorization': 'Bearer $accessToken',
+        'Content-Type': 'application/json; charset=UTF-8',
+        'Accept': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
+      if (jsonResponse['isSuccess']) {
+        final List musics = jsonResponse['result']['playlistMusicList'] as List;
+        return musics.map((music) => PlaylistMusicDto.fromJson(music)).toList();
+      } else {
+        throw Exception('API error: ${jsonResponse['message']}');
+      }
+    } else if (response.statusCode == 403) {
+      await _tokenStorage.deleteAccessToken();
+      throw Exception('Access token expired. Please log in again.');
+    } else {
+      throw Exception('HTTP error: ${response.statusCode}');
+    }
+  }
+
+  Future<void> _refreshAccessToken() async {
+    final refreshToken = await _tokenStorage.getRefreshToken();
+    if (refreshToken != null) {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/refresh'),
         headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json; charset=UTF-8',
+          'Content-Type': 'application/json',
+          'RefreshToken': refreshToken,
         },
       );
 
       if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
+        final jsonResponse = jsonDecode(response.body);
         if (jsonResponse['isSuccess']) {
-          final musicList = jsonResponse['result']['musicList'] as List;
-          return musicList.map((music) => PlaylistMusicDto.fromJson(music)).toList();
-        } else {
-          switch(jsonResponse['code']) {
-            case 'PLAYLIST4001':
-              throw Exception('플레이리스트를 찾을 수 없습니다.');
-            case 'AUTH4001':
-            case 'AUTH4002':
-              throw Exception('로그인이 필요합니다.');
-            case 'AUTH4003':
-              throw Exception('접근 권한이 없습니다.');
-            default:
-              throw Exception('${jsonResponse['code']}: ${jsonResponse['message']}');
-          }
+          final newAccessToken = jsonResponse['result']['accessToken'];
+          final newAccessTokenExpiresAt = DateTime.now().add(const Duration(hours: 1));
+          await _tokenStorage.saveAccessToken(newAccessToken, newAccessTokenExpiresAt);
         }
-      } else {
-        throw Exception('Failed to load playlist musics: ${response.statusCode}');
       }
-    } catch (e) {
-      print('Error in getPlaylistMusics: $e');
-      rethrow;
     }
   }
 }

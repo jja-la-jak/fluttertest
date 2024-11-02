@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter_project/service/music_service.dart';
 
 Future<List<Music>> searchMusic(String query, {String type = 'title'}) async {
   // URL 인코딩 수정
@@ -31,28 +33,53 @@ Future<List<Music>> searchMusic(String query, {String type = 'title'}) async {
   }
 }
 
-class Music {
-  final int id;
-  final String title;
-  final String artist;
-  final String url;
-  final int viewCount;
+Future<List<Music>> performSearch(
+    BuildContext context,
+    TextEditingController controller,
+    void Function(bool) setLoading,
+    ) async {
+  final query = controller.text;
+  if (query.isEmpty) return [];
 
-  Music({
-    required this.id,
-    required this.title,
-    required this.artist,
-    required this.url,
-    required this.viewCount
-  });
+  setLoading(true);
 
-  factory Music.fromJson(Map<String, dynamic> json) {
-    return Music(
-      id: json['id'],
-      title: json['title'],
-      artist: json['artist'],
-      url: json['url'],
-      viewCount: json['viewCount'],
-    );
+  try {
+    final results = await searchMusic(query);
+    setLoading(false);
+    return results;
+  } catch (e) {
+    setLoading(false);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('검색 중 오류가 발생했습니다: $e')),
+      );
+    }
+    return [];
   }
 }
+
+// class Music {
+//   final int id;
+//   final String title;
+//   final String artist;
+//   final String url;
+//   final int viewCount;
+//
+//   Music({
+//     required this.id,
+//     required this.title,
+//     required this.artist,
+//     required this.url,
+//     required this.viewCount
+//   });
+//
+//   factory Music.fromJson(Map<String, dynamic> json) {
+//     return Music(
+//       id: json['id'],
+//       title: json['title'],
+//       artist: json['artist'],
+//       url: json['url'],
+//       viewCount: json['viewCount'],
+//     );
+//   }
+// }
