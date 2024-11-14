@@ -6,6 +6,7 @@ import '../services/token_storage.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'full_playlist_page.dart';
 import 'package:flutter_project/screens/youtube_player_screen.dart';
+import 'package:flutter_project/service/music_service.dart';
 
 class PlaylistPage extends StatefulWidget {
   const PlaylistPage({Key? key}) : super(key: key);
@@ -21,6 +22,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
   String? accessToken;
   int _currentPage = 0;
   bool _isLoading = false;
+  bool _isEditMode = false;
+  Set<int> _selectedMusicIds = {};
   final TokenStorage _tokenStorage = TokenStorage();
   final PlaylistService _playlistService = PlaylistService();
 
@@ -72,6 +75,29 @@ class _PlaylistPageState extends State<PlaylistPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('플레이리스트를 불러오는데 실패했습니다: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteSelectedMusics() async {
+    if (_selectedPlaylistId == null || _selectedMusicIds.isEmpty) return;
+
+    try {
+      await _playlistService.deletePlaylistMusics(_selectedPlaylistId!, _selectedMusicIds.toList());
+      setState(() {
+        _selectedMusicIds.clear();
+        _isEditMode = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('선택한 곡들이 삭제되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('곡 삭제에 실패했습니다: $e')),
         );
       }
     }
@@ -194,19 +220,45 @@ class _PlaylistPageState extends State<PlaylistPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    selectedPlaylist.name,
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        selectedPlaylist.name,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (_isEditMode)
+                        TextButton(
+                          onPressed: _deleteSelectedMusics,
+                          child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                        ),
+                    ],
                   ),
-                  Text(
-                    '${musicList.length}곡',
-                    style: const TextStyle(
-                      color: Colors.grey,
-                      fontSize: 16,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${musicList.length}곡',
+                        style: const TextStyle(
+                          color: Colors.grey,
+                          fontSize: 16,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _isEditMode = !_isEditMode;
+                            if (!_isEditMode) {
+                              _selectedMusicIds.clear();
+                            }
+                          });
+                        },
+                        child: Text(_isEditMode ? '완료' : '편집'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -218,28 +270,37 @@ class _PlaylistPageState extends State<PlaylistPage> {
                 itemBuilder: (context, index) {
                   final music = musicList[index];
                   return ListTile(
-                    leading: CircleAvatar(
+                    leading: _isEditMode
+                        ? Checkbox(
+                      value: _selectedMusicIds.contains(music.musicId),
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) {
+                            _selectedMusicIds.add(music.musicId);
+                          } else {
+                            _selectedMusicIds.remove(music.musicId);
+                          }
+                        });
+                      },
+                    )
+                        : CircleAvatar(
                       backgroundColor: Colors.brown.shade200,
                       child: Text('${index + 1}'),
                     ),
                     title: Text(music.title),
                     subtitle: Text(music.artist),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('조회수: ${music.viewCount}'),
-                        IconButton(
-                          icon: const Icon(Icons.play_circle_outline),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                    trailing: _isEditMode
+                        ? null
+                        : IconButton(
+                      icon: const Icon(Icons.play_circle_outline),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
+                          ),
+                        );
+                      },
                     ),
                   );
                 },
@@ -250,6 +311,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
       },
     );
   }
+
 
   Widget _buildPlaylistDropdown() {
     return Container(

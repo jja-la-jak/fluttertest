@@ -123,7 +123,6 @@ class _FullPlaylistPageState extends State<FullPlaylistPage> {
         return ListTile(
           title: Text(music.title),
           subtitle: Text(music.artist),
-          trailing: Text('조회수: ${music.viewCount}'),
           onTap: () {
             Navigator.push(
               context,

@@ -57,29 +57,3 @@ Future<List<Music>> performSearch(
     return [];
   }
 }
-
-// class Music {
-//   final int id;
-//   final String title;
-//   final String artist;
-//   final String url;
-//   final int viewCount;
-//
-//   Music({
-//     required this.id,
-//     required this.title,
-//     required this.artist,
-//     required this.url,
-//     required this.viewCount
-//   });
-//
-//   factory Music.fromJson(Map<String, dynamic> json) {
-//     return Music(
-//       id: json['id'],
-//       title: json['title'],
-//       artist: json['artist'],
-//       url: json['url'],
-//       viewCount: json['viewCount'],
-//     );
-//   }
-// }

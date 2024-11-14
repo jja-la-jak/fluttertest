@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_project/screens/playlist_page.dart';
-import 'package:flutter_project/screens/chatting.dart';
+import 'package:flutter_project/screens/chatting_page.dart';
 import 'package:flutter_project/modules/search_music.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:flutter_project/services/token_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_project/screens/youtube_player_screen.dart';
-import 'package:flutter_project/screens/ranking.dart';
+import 'package:flutter_project/screens/ranking_page.dart';
 import 'package:flutter_project/screens/userinfo_page.dart';
 import 'package:flutter_project/service/music_service.dart';
 
@@ -34,7 +34,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   static const double _kSearchBarBorderRadius = 20.0;
   static const double _kSearchIconPadding = 8.0;
   DateTime? _lastBackPressTime;
-
+  Map<String, dynamic>? _userInfo;
 
   final TextEditingController _searchController = TextEditingController();
   List<Music> _searchResults = [];
@@ -42,9 +42,44 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   bool _showResults = false;
 
   @override
+  void initState() {
+    super.initState();
+    _fetchUserInfo();
+  }
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchUserInfo() async {
+    final TokenStorage tokenStorage = TokenStorage();
+    final String? accessToken = await tokenStorage.getAccessToken();
+
+    if (accessToken == null) {
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('https://gnumusic.shop/api/users/me'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
+        if (jsonResponse['isSuccess']) {
+          setState(() {
+            _userInfo = jsonResponse['result'];
+          });
+        }
+      }
+    } catch (e) {
+      print('사용자 정보 불러오기 실패: $e');
+    }
   }
 
   Future<void> _performSearch() async {
@@ -109,6 +144,14 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                   return ListTile(
                     title: Text(music.title),
                     subtitle: Text(music.artist),
+                    onTap: () async {  // 여기에 onTap 추가
+                      await _increaseViewCount(music.id);
+                      Navigator.of(context).push(  // pushReplacement 대신 push 사용
+                        MaterialPageRoute(
+                          builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
+                        ),
+                      );
+                    },
                     trailing: SizedBox(
                       width: 150,  // 조절 가능한 너비
                       child: Row(
@@ -124,12 +167,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
                             icon: const Icon(Icons.add),
                             onPressed: () async {
                               await _showAddToPlaylistDialog(context, music);
-                              await _increaseViewCount(music.id);
-                              Navigator.of(context).pushReplacement(
-                                MaterialPageRoute(
-                                  builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
-                                ),
-                              );
+
                             },
                           ),
                         ],
@@ -286,7 +324,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     return PreferredSize(
       preferredSize: const Size.fromHeight(_kAppBarHeight),
       child: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Color(0xFFF6C48A),
         elevation: 0,
         automaticallyImplyLeading: false,
         title: _buildSearchBar(),
@@ -378,11 +416,29 @@ class _CustomScaffoldState extends State<CustomScaffold> {
             MaterialPageRoute(builder: (context) => const UserInfoPage()),
           );
         },
-        child: _buildCircleAvatarButton('assets/profile.png', 0),
+        child: IconButton(
+          icon: _userInfo?.containsKey('profileImage') == true && _userInfo!['profileImage'] != null
+              ? CircleAvatar(
+            radius: 18,
+            backgroundImage: NetworkImage(_userInfo!['profileImage']),
+          )
+              : const CircleAvatar(
+            radius: 18,
+            backgroundImage: AssetImage('assets/profile.png'),
+            backgroundColor: Colors.transparent,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const UserInfoPage()),
+            );
+          },
+        ),
       ),
       _buildCircleAvatarButton('assets/menu.png', 1),
     ];
   }
+
 
   Widget _buildCircleAvatarButton(String assetName, int index) {
     return IconButton(

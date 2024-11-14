@@ -29,12 +29,12 @@ class _ChattingState extends State<Chatting> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              '채팅 페이지',
+              'Prompt',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 20),
             ElevatedButton(
-              child: Text('두 번째 화면으로 이동'),
+              child: Text('구현예정'),
               onPressed: () {
                 Navigator.push(
                   context,

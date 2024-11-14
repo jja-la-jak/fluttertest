@@ -49,6 +49,7 @@ class GoogleSignInButton extends StatelessWidget {
         if (apiResponse.isSuccess) {
           final String accessToken = apiResponse.result['accessToken'];
           final String refreshToken = apiResponse.result['refreshToken'];
+          await _secureStorage.deleteAll();
           await _secureStorage.write(key: 'access_token', value: accessToken);
           await _secureStorage.write(key: 'refresh_token', value: refreshToken);
 

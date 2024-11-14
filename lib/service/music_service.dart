@@ -21,7 +21,7 @@ class MusicService {
 
   static Future<Music> increaseViewCount(int id) async {
     final response = await http.post(
-      Uri.parse('https://gnumusic.com/api/musics/$id/views'),
+      Uri.parse('https://gnumusic.shop/api/musics/$id/views'),
     );
     if (response.statusCode == 200) {
       final jsonResponse = jsonDecode(response.body);

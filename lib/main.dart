@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_project/screens/chatting.dart';
+import 'package:flutter_project/screens/chatting_page.dart';
 import 'package:flutter_project/screens/playlist_page.dart';
 import 'package:flutter_project/screens/login_screen.dart';
 import 'package:flutter_project/screens/splash_screen.dart';
@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: LoginScreen(),  // HomePage 위젯을 사용합니다.
+      home: SplashScreen(),  // HomePage 위젯을 사용합니다.
     );
   }
 }

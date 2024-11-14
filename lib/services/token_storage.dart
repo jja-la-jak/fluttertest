@@ -34,6 +34,10 @@ class TokenStorage {
     await _secureStorage.write(key: 'refresh_token', value: token);
   }
 
+  Future<void> deleteRefreshToken() async {
+    await _secureStorage.delete(key: 'refresh_token');
+  }
+
   Future<bool> isAccessTokenExpired(String accessToken) async {
     final expiresAt = await getAccessTokenExpiresAt();
     if (expiresAt != null) {

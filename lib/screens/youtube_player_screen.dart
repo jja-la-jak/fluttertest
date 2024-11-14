@@ -19,6 +19,7 @@ class _YoutubePlayerScreenState extends State<YoutubePlayerScreen> {
   void initState() {
     super.initState();
     _setupYoutubePlayer();
+    _increaseViewCount();
     _getMusicId();
   }
   void _setupYoutubePlayer() {
@@ -74,10 +75,6 @@ class _YoutubePlayerScreenState extends State<YoutubePlayerScreen> {
         builder: (context, player) => Column(
           children: [
             player,
-            ElevatedButton(
-              onPressed: _increaseViewCount,
-              child: const Text('조회수 증가'),
-            ),
           ],
         ),
       ),
