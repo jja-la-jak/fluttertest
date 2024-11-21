@@ -81,7 +81,7 @@ class _UserInfoPageState extends State<UserInfoPage> {
         // 로그인 페이지로 이동
         Navigator.pushNamedAndRemoveUntil(
           context,
-          '/login',
+          '/splash_screen',
               (route) => false,
         );
       } catch (e) {

@@ -435,7 +435,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
           },
         ),
       ),
-      _buildCircleAvatarButton('assets/menu.png', 1),
+      _buildCircleAvatarButton('assets/image/menu.png', 1),
     ];
   }
 

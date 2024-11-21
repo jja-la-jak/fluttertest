@@ -7,6 +7,7 @@ import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'full_playlist_page.dart';
 import 'package:flutter_project/screens/youtube_player_screen.dart';
 import 'package:flutter_project/service/music_service.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 
 class PlaylistPage extends StatefulWidget {
   const PlaylistPage({Key? key}) : super(key: key);
@@ -84,7 +85,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
     if (_selectedPlaylistId == null || _selectedMusicIds.isEmpty) return;
 
     try {
-      await _playlistService.deletePlaylistMusics(_selectedPlaylistId!, _selectedMusicIds.toList());
+      await _playlistService.deletePlaylistMusics(accessToken!,_selectedPlaylistId!, _selectedMusicIds.toList());
       setState(() {
         _selectedMusicIds.clear();
         _isEditMode = false;
@@ -223,11 +224,27 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        selectedPlaylist.name,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Text(
+                              selectedPlaylist.name,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            if (_isEditMode) ... [
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.black54),
+                                onPressed: () => _showEditTitleDialog(selectedPlaylist),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.red),
+                                onPressed: () => _showDeletePlaylistDialog(selectedPlaylist),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       if (_isEditMode)
@@ -265,11 +282,80 @@ class _PlaylistPageState extends State<PlaylistPage> {
             ),
             const Divider(height: 1),
             Expanded(
-              child: ListView.builder(
+              child: ReorderableListView.builder(
                 itemCount: musicList.length,
+                proxyDecorator: (child, index, animation) {
+                  return AnimatedBuilder(
+                    animation: animation,
+                    builder: (BuildContext context, Widget? child) {
+                      return Material(
+                        elevation: 5 * animation.value,
+                        color: Colors.white,
+                        shadowColor: Colors.blue.withOpacity(0.3),
+                        child: child,
+                      );
+                    },
+                    child: child,
+                  );
+                },
+                onReorder: (oldIndex, newIndex) async {
+                  HapticFeedback.mediumImpact();
+
+                  // newIndex 조정 (Flutter의 ReorderableListView 특성상 필요)
+                  if (oldIndex < newIndex) {
+                    newIndex -= 1;
+                  }
+
+                  // 순서 변경 전에 현재 목록의 복사본 저장
+                  final List<PlaylistMusicDto> originalList = List.from(musicList);
+
+                  try {
+                    // 1. 먼저 로컬 상태 업데이트
+                    setState(() {
+                      final item = musicList.removeAt(oldIndex);
+                      musicList.insert(newIndex, item);
+                    });
+
+                    // 2. 서버에 업데이트할 데이터 준비
+                    final List<Map<String, dynamic>> updateMusic = musicList.asMap().entries.map((entry) {
+                      print('Mapping music at index ${entry.key}: ${entry.value.musicId}');  // 로그 추가
+                      return {
+                        'playlistMusicId': entry.value.musicId,
+                        'musicOrder': entry.key +1 // 1부터 시작하는 순서
+                      };
+                    }).toList();
+
+                    // 3. 요청 데이터 확인
+                    print('Update request data: $updateMusic');
+
+                    // 4. 서버 업데이트
+                    await _playlistService.updatePlaylistOrder(
+                        accessToken!,
+                        selectedPlaylist.playlistId,
+                        updateMusic
+                    );
+
+                    // 5. 성공 시 처리 (필요한 경우)
+                    print('Order update successful');
+
+                  } catch (e) {
+                    print('Error during reorder: $e');
+                    // 실패 시 원래 순서로 복원
+                    setState(() {
+                      musicList.clear();
+                      musicList.addAll(originalList);
+                    });
+
+                    // 사용자에게 에러 알림
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('순서 변경에 실패했습니다: ${e.toString()}')),
+                    );
+                  }
+                },
                 itemBuilder: (context, index) {
                   final music = musicList[index];
                   return ListTile(
+                    key: ValueKey(music.musicId),
                     leading: _isEditMode
                         ? Checkbox(
                       value: _selectedMusicIds.contains(music.musicId),
@@ -289,23 +375,75 @@ class _PlaylistPageState extends State<PlaylistPage> {
                     ),
                     title: Text(music.title),
                     subtitle: Text(music.artist),
-                    trailing: _isEditMode
-                        ? null
-                        : IconButton(
-                      icon: const Icon(Icons.play_circle_outline),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (!_isEditMode)
+                          IconButton(
+                            icon: const Icon(Icons.play_circle_outline),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
+                        if (_isEditMode)
+                          ReorderableDragStartListener(
+                            index: index,
+                            child: const Icon(Icons.drag_handle, color: Colors.grey),
+                          ),
+                      ],
                     ),
                   );
                 },
               ),
-            ),
+            )
+            // Expanded(
+            //   child: ListView.builder(
+            //     itemCount: musicList.length,
+            //     itemBuilder: (context, index) {
+            //       final music = musicList[index];
+            //       print('musicid : ${music.musicId}');
+            //       return ListTile(
+            //         leading: _isEditMode
+            //             ? Checkbox(
+            //           value: _selectedMusicIds.contains(music.musicId),
+            //           onChanged: (bool? value) {
+            //             setState(() {
+            //               if (value == true) {
+            //                 _selectedMusicIds.add(music.musicId);
+            //               } else {
+            //                 _selectedMusicIds.remove(music.musicId);
+            //               }
+            //             });
+            //           },
+            //         )
+            //             : CircleAvatar(
+            //           backgroundColor: Colors.brown.shade200,
+            //           child: Text('${index + 1}'),
+            //         ),
+            //         title: Text(music.title),
+            //         subtitle: Text(music.artist),
+            //         trailing: _isEditMode
+            //             ? null
+            //             : IconButton(
+            //           icon: const Icon(Icons.play_circle_outline),
+            //           onPressed: () {
+            //             Navigator.push(
+            //               context,
+            //               MaterialPageRoute(
+            //                 builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
+            //               ),
+            //             );
+            //           },
+            //         ),
+            //       );
+            //     },
+            //   ),
+            // ),
           ],
         );
       },
@@ -333,6 +471,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
             onChanged: (int? newValue) {
               setState(() {
                 _selectedPlaylistId = newValue;
+                _isEditMode = false;
+                _selectedMusicIds.clear();
                 print('Changed playlist ID to: $newValue'); // 변경된 ID 출력
               });
             },
@@ -447,5 +587,114 @@ class _PlaylistPageState extends State<PlaylistPage> {
       }
     }
   }
+  Future<void> _showDeletePlaylistDialog(PlaylistPreViewDto playlist) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('플레이리스트 삭제'),
+          content: Text('${playlist.name}와 모든 음악이 삭제됩니다.\n계속하시겠습니까?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('삭제', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deletePlaylist(playlist.playlistId);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deletePlaylist(int playlistId) async {
+    try {
+      await _playlistService.deletePlaylist(accessToken!, playlistId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('플레이리스트가 삭제되었습니다')),
+        );
+        setState(() {
+          _playlists.removeWhere((p) => p.playlistId == playlistId);
+          _selectedPlaylistId = null;
+          _isEditMode = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플레이리스트 삭제 실패: $e')),
+        );
+      }
+    }
+  }
+  Future<void> _showEditTitleDialog(PlaylistPreViewDto playlist) async {
+    final TextEditingController controller = TextEditingController(text: playlist.name);
+
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('플레이리스트 이름 수정'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: "새로운 이름을 입력하세요",
+            ),
+            autofocus: true,
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('저장'),
+              onPressed: () async {
+                if (controller.text.isNotEmpty) {
+                  try {
+                    await _playlistService.updatePlaylistTitle(
+                        accessToken!,
+                        playlist.playlistId,
+                        controller.text
+                    );
+                    setState(() {
+                      // UI 업데이트
+                      final index = _playlists.indexWhere((p) => p.playlistId == playlist.playlistId);
+                      if (index != -1) {
+                        _playlists[index] = PlaylistPreViewDto(
+                          playlistId: playlist.playlistId,
+                          name: controller.text,
+                          createdDate: _playlists[index].createdDate,
+                        );
+                      }
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('플레이리스트 이름이 수정되었습니다')),
+                    );
+                    Navigator.of(context).pop();
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('플레이리스트 이름 수정 실패: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
 }
 

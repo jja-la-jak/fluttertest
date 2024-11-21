@@ -19,6 +19,12 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
       ),
       home: SplashScreen(),  // HomePage 위젯을 사용합니다.
+      routes: {
+        '/splash_screen': (context) => SplashScreen(),
+        '/login': (context) => LoginScreen(),
+        '/playlist': (context) => PlaylistPage(),
+        '/chatting': (context) => Chatting(),
+      }
     );
   }
 }

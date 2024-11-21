@@ -97,7 +97,7 @@ class PlaylistMusicDto {
 
   factory PlaylistMusicDto.fromJson(Map<String, dynamic> json) {
     return PlaylistMusicDto(
-      musicId: json['id'] ?? 0,  // 'musicId' 대신 'id' 사용
+      musicId: json['musicId'] ?? 0,  // 'musicId' 대신 'id' 사용
       title: json['title'] ?? '',
       artist: json['artist'] ?? '',
       url: json['url'] ?? '',
