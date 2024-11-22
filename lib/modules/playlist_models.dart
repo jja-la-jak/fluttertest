@@ -81,6 +81,7 @@ class PlaylistMusicListDto {
 }
 
 class PlaylistMusicDto {
+  final int playlistMusicMappingId;
   final int musicId;
   final String title;
   final String artist;
@@ -88,6 +89,7 @@ class PlaylistMusicDto {
   final int viewCount;
 
   PlaylistMusicDto({
+    required this.playlistMusicMappingId,
     required this.musicId,
     required this.title,
     required this.artist,
@@ -97,6 +99,7 @@ class PlaylistMusicDto {
 
   factory PlaylistMusicDto.fromJson(Map<String, dynamic> json) {
     return PlaylistMusicDto(
+      playlistMusicMappingId: json['playlistMusicMappingId'] ?? 0,
       musicId: json['musicId'] ?? 0,  // 'musicId' 대신 'id' 사용
       title: json['title'] ?? '',
       artist: json['artist'] ?? '',

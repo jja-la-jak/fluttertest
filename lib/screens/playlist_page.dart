@@ -9,6 +9,8 @@ import 'package:flutter_project/screens/youtube_player_screen.dart';
 import 'package:flutter_project/service/music_service.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
+enum PlaylistType {personal, team}
+PlaylistType _selectedType = PlaylistType.personal;
 class PlaylistPage extends StatefulWidget {
   const PlaylistPage({Key? key}) : super(key: key);
 
@@ -27,11 +29,21 @@ class _PlaylistPageState extends State<PlaylistPage> {
   Set<int> _selectedMusicIds = {};
   final TokenStorage _tokenStorage = TokenStorage();
   final PlaylistService _playlistService = PlaylistService();
+  late Future<List<PlaylistMusicDto>> _playlistMusicsFuture;
 
   @override
   void initState() {
     super.initState();
     _initializeToken();
+  }
+
+  void _loadPlaylistMusics() {
+    if (_selectedPlaylistId != null && accessToken != null) {
+      _playlistMusicsFuture = _playlistService.getPlaylistMusics(
+          accessToken!,
+          _selectedPlaylistId!
+      );
+    }
   }
 
   Future<void> _initializeToken() async {
@@ -46,7 +58,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
         }
         return;
       }
-      _loadPlaylists();
+      await _refreshPlaylists();
+      if (_playlists.isNotEmpty) {
+        setState(() {
+          _selectedPlaylistId = _playlists.first.playlistId;
+          _loadPlaylistMusics();
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -65,9 +83,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
     try {
       final playlistList = await _playlistService.getPlaylistPreViewList(accessToken!);
       setState(() {
-        _playlists.addAll(playlistList.playlistPreviewList);
+        _playlists = playlistList.playlistPreviewList;
         _currentPage++;
         _isLoading = false;
+        if (_selectedType == PlaylistType.personal && _playlists.isNotEmpty) {
+          _selectedPlaylistId = _playlists.first.playlistId;
+          _loadPlaylistMusics();
+        }
       });
     } catch (e) {
       setState(() {
@@ -85,10 +107,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
     if (_selectedPlaylistId == null || _selectedMusicIds.isEmpty) return;
 
     try {
-      await _playlistService.deletePlaylistMusics(accessToken!,_selectedPlaylistId!, _selectedMusicIds.toList());
+      await _playlistService.deletePlaylistMusics(accessToken!, _selectedPlaylistId!, _selectedMusicIds.toList());
       setState(() {
         _selectedMusicIds.clear();
         _isEditMode = false;
+        _loadPlaylistMusics();
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,6 +124,49 @@ class _PlaylistPageState extends State<PlaylistPage> {
           SnackBar(content: Text('곡 삭제에 실패했습니다: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _handleReorder(List<PlaylistMusicDto> musicList, int oldIndex, int newIndex) async {
+    HapticFeedback.mediumImpact();
+
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    final List<PlaylistMusicDto> originalList = List.from(musicList);
+
+    try {
+      setState(() {
+        final item = musicList.removeAt(oldIndex);
+        musicList.insert(newIndex, item);
+      });
+
+      final List<Map<String, dynamic>> updateMusic = musicList.asMap().entries.map((entry) {
+        return {
+          'playlistMusicId': entry.value.playlistMusicMappingId,
+          'musicOrder': entry.key + 1
+        };
+      }).toList();
+
+      await _playlistService.updatePlaylistOrder(
+          accessToken!,
+          _selectedPlaylistId!,
+          updateMusic
+      );
+
+      await _refreshPlaylists();
+    } catch (e) {
+      print('Error during reorder: $e');
+      setState(() {
+        musicList.clear();
+        musicList.addAll(originalList);
+        _loadPlaylistMusics();
+      });
+      await _refreshPlaylists();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('순서 변경에 실패했습니다: ${e.toString()}')),
+      );
     }
   }
 
@@ -140,15 +206,15 @@ class _PlaylistPageState extends State<PlaylistPage> {
       return const Center(child: Text('플레이리스트를 선택해주세요'));
     }
 
-    print('Selected Playlist ID: $_selectedPlaylistId');
+    _loadPlaylistMusics();
+
     final selectedPlaylist = _playlists.firstWhere(
           (p) => p.playlistId == _selectedPlaylistId,
       orElse: () => _playlists.first,
     );
-    print('Selected Playlist Name: ${selectedPlaylist.name}');
 
     return FutureBuilder<List<PlaylistMusicDto>>(
-      future: _playlistService.getPlaylistMusics(accessToken!, selectedPlaylist.playlistId),
+      future: _playlistMusicsFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -162,13 +228,14 @@ class _PlaylistPageState extends State<PlaylistPage> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text('인증이 만료되었습니다. 다시 로그인해주세요'),
-                  const SizedBox(height:8),
-                  ElevatedButton(onPressed: () async{
-                    await _tokenStorage.deleteAccessToken();
-                  },
-                    child: const Text('다시로그인)'),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await _tokenStorage.deleteAccessToken();
+                    },
+                    child: const Text('다시 로그인'),
                   )
-                ]
+                ],
               ),
             );
           }
@@ -188,7 +255,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
         }
 
         final musicList = snapshot.data ?? [];
-        print('Loaded ${musicList.length} songs');
 
         if (musicList.isEmpty) {
           return Center(
@@ -213,7 +279,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
           );
         }
 
-        // 음악 목록 표시
         return Column(
           children: [
             Container(
@@ -234,7 +299,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (_isEditMode) ... [
+                            if (_isEditMode) ...[
                               IconButton(
                                 icon: const Icon(Icons.edit, color: Colors.black54),
                                 onPressed: () => _showEditTitleDialog(selectedPlaylist),
@@ -282,7 +347,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
             ),
             const Divider(height: 1),
             Expanded(
-              child: ReorderableListView.builder(
+              child: _isEditMode
+                  ? ReorderableListView.builder(
                 itemCount: musicList.length,
                 proxyDecorator: (child, index, animation) {
                   return AnimatedBuilder(
@@ -298,66 +364,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
                     child: child,
                   );
                 },
-                onReorder: (oldIndex, newIndex) async {
-                  HapticFeedback.mediumImpact();
-
-                  // newIndex 조정 (Flutter의 ReorderableListView 특성상 필요)
-                  if (oldIndex < newIndex) {
-                    newIndex -= 1;
-                  }
-
-                  // 순서 변경 전에 현재 목록의 복사본 저장
-                  final List<PlaylistMusicDto> originalList = List.from(musicList);
-
-                  try {
-                    // 1. 먼저 로컬 상태 업데이트
-                    setState(() {
-                      final item = musicList.removeAt(oldIndex);
-                      musicList.insert(newIndex, item);
-                    });
-
-                    // 2. 서버에 업데이트할 데이터 준비
-                    final List<Map<String, dynamic>> updateMusic = musicList.asMap().entries.map((entry) {
-                      print('Mapping music at index ${entry.key}: ${entry.value.musicId}');  // 로그 추가
-                      return {
-                        'playlistMusicId': entry.value.musicId,
-                        'musicOrder': entry.key +1 // 1부터 시작하는 순서
-                      };
-                    }).toList();
-
-                    // 3. 요청 데이터 확인
-                    print('Update request data: $updateMusic');
-
-                    // 4. 서버 업데이트
-                    await _playlistService.updatePlaylistOrder(
-                        accessToken!,
-                        selectedPlaylist.playlistId,
-                        updateMusic
-                    );
-
-                    // 5. 성공 시 처리 (필요한 경우)
-                    print('Order update successful');
-
-                  } catch (e) {
-                    print('Error during reorder: $e');
-                    // 실패 시 원래 순서로 복원
-                    setState(() {
-                      musicList.clear();
-                      musicList.addAll(originalList);
-                    });
-
-                    // 사용자에게 에러 알림
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('순서 변경에 실패했습니다: ${e.toString()}')),
-                    );
-                  }
-                },
+                onReorder: (oldIndex, newIndex) =>
+                    _handleReorder(musicList, oldIndex, newIndex),
                 itemBuilder: (context, index) {
                   final music = musicList[index];
                   return ListTile(
                     key: ValueKey(music.musicId),
-                    leading: _isEditMode
-                        ? Checkbox(
+                    leading: Checkbox(
                       value: _selectedMusicIds.contains(music.musicId),
                       onChanged: (bool? value) {
                         setState(() {
@@ -368,88 +381,44 @@ class _PlaylistPageState extends State<PlaylistPage> {
                           }
                         });
                       },
-                    )
-                        : CircleAvatar(
+                    ),
+                    title: Text(music.title),
+                    subtitle: Text(music.artist),
+                    trailing: const Icon(Icons.drag_handle, color: Colors.grey),
+                  );
+                },
+              )
+                  : ListView.builder(
+                itemCount: musicList.length,
+                itemBuilder: (context, index) {
+                  final music = musicList[index];
+                  return ListTile(
+                    leading: CircleAvatar(
                       backgroundColor: Colors.brown.shade200,
                       child: Text('${index + 1}'),
                     ),
                     title: Text(music.title),
                     subtitle: Text(music.artist),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (!_isEditMode)
-                          IconButton(
-                            icon: const Icon(Icons.play_circle_outline),
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
-                                ),
-                              );
-                            },
+                    trailing: IconButton(
+                      icon: const Icon(Icons.play_circle_outline),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
                           ),
-                        if (_isEditMode)
-                          ReorderableDragStartListener(
-                            index: index,
-                            child: const Icon(Icons.drag_handle, color: Colors.grey),
-                          ),
-                      ],
+                        );
+                      },
                     ),
                   );
                 },
               ),
-            )
-            // Expanded(
-            //   child: ListView.builder(
-            //     itemCount: musicList.length,
-            //     itemBuilder: (context, index) {
-            //       final music = musicList[index];
-            //       print('musicid : ${music.musicId}');
-            //       return ListTile(
-            //         leading: _isEditMode
-            //             ? Checkbox(
-            //           value: _selectedMusicIds.contains(music.musicId),
-            //           onChanged: (bool? value) {
-            //             setState(() {
-            //               if (value == true) {
-            //                 _selectedMusicIds.add(music.musicId);
-            //               } else {
-            //                 _selectedMusicIds.remove(music.musicId);
-            //               }
-            //             });
-            //           },
-            //         )
-            //             : CircleAvatar(
-            //           backgroundColor: Colors.brown.shade200,
-            //           child: Text('${index + 1}'),
-            //         ),
-            //         title: Text(music.title),
-            //         subtitle: Text(music.artist),
-            //         trailing: _isEditMode
-            //             ? null
-            //             : IconButton(
-            //           icon: const Icon(Icons.play_circle_outline),
-            //           onPressed: () {
-            //             Navigator.push(
-            //               context,
-            //               MaterialPageRoute(
-            //                 builder: (context) => YoutubePlayerScreen(youtubeUrl: music.url),
-            //               ),
-            //             );
-            //           },
-            //         ),
-            //       );
-            //     },
-            //   ),
-            // ),
+            ),
           ],
         );
       },
     );
   }
-
 
   Widget _buildPlaylistDropdown() {
     return Container(
@@ -458,70 +427,105 @@ class _PlaylistPageState extends State<PlaylistPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          DropdownButton<int?>(
-            value: _selectedPlaylistId,
-            icon: const Icon(Icons.arrow_drop_down),
-            iconSize: 24,
-            elevation: 16,
-            style: const TextStyle(color: Colors.black),
-            underline: Container(
-              height: 2,
-              color: Colors.brown,
-            ),
-            onChanged: (int? newValue) {
-              setState(() {
-                _selectedPlaylistId = newValue;
-                _isEditMode = false;
-                _selectedMusicIds.clear();
-                print('Changed playlist ID to: $newValue'); // 변경된 ID 출력
-              });
-            },
-            items: [
-              const DropdownMenuItem<int?>(
-                value: null,
-                child: Text('나의 플레이리스트'),
-              ),
-              ..._playlists.map((playlist) => DropdownMenuItem<int?>(
-                value: playlist.playlistId,
-                child: Text(playlist.name),
-              )),
-            ],
-          ),
-          Row(
-            children: [
-              if (_selectedPlaylistId != null)
-                TextButton(
-                  onPressed: () {
-                    final selectedPlaylist = _playlists.firstWhere(
-                            (p) => p.playlistId == _selectedPlaylistId
-                    );
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FullPlaylistPage(
-                          playlist: selectedPlaylist,
-                          accessToken: accessToken!,
-                        ),
+          Expanded(
+            child: Row(
+              children: [
+                // 플레이리스트 타입 선택 드롭다운
+                Container(
+                  margin: const EdgeInsets.only(right: 16),
+                  child: DropdownButton<PlaylistType>(
+                    value: _selectedType,
+                    icon: const Icon(Icons.arrow_drop_down),
+                    iconSize: 24,
+                    elevation: 16,
+                    style: const TextStyle(color: Colors.black),
+                    underline: Container(
+                      height: 2,
+                      color: Colors.brown,
+                    ),
+                    onChanged: (PlaylistType? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedType = newValue;
+                          _isEditMode = false;
+                          _selectedMusicIds.clear();
+                          if (newValue == PlaylistType.personal && _playlists.isNotEmpty) {
+                            _selectedPlaylistId = _playlists.first.playlistId;
+                            _loadPlaylistMusics();
+                          } else {
+                            _selectedPlaylistId = null;
+                          }
+                        });
+                      }
+                    },
+                    items: const[
+                      DropdownMenuItem(
+                        value: PlaylistType.personal,
+                        child: Text('개인 플레이리스트'),
                       ),
-                    );
-                  },
-                  child: Row(
-                    children: const [
-                      Text('더보기', style: TextStyle(color: Colors.black)),
-                      Icon(Icons.arrow_forward_ios, size: 14, color: Colors.black),
+                      DropdownMenuItem(
+                        value: PlaylistType.team,
+                        child: Text('팀 플레이리스트'),
+                      ),
                     ],
                   ),
                 ),
-              const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () => _showCreatePlaylistDialog(context),
-                child: const Text('생성'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.brown,
-                  foregroundColor: Colors.white,
+                // 플레이리스트 선택 드롭다운
+                Expanded(
+                  child: DropdownButton<int?>(
+                    value: _selectedPlaylistId,
+                    icon: const Icon(Icons.arrow_drop_down),
+                    iconSize: 24,
+                    elevation: 16,
+                    isExpanded: true,
+                    style: const TextStyle(color: Colors.black),
+                    underline: Container(
+                      height: 2,
+                      color: Colors.brown,
+                    ),
+                    onChanged: (int? newValue) {
+                      setState(() {
+                        _selectedPlaylistId = newValue;
+                        _isEditMode = false;
+                        _selectedMusicIds.clear();
+                        if (newValue != null) {
+                          _loadPlaylistMusics();
+                        }
+                      });
+                    },
+                    items: [
+                      DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text(_selectedType == PlaylistType.personal
+                            ? '나의 플레이리스트'
+                            : '팀 플레이리스트'),
+                      ),
+                      ..._selectedType == PlaylistType.personal
+                          ? _playlists.map((playlist) => DropdownMenuItem<int?>(
+                        value: playlist.playlistId,
+                        child: Text(playlist.name),
+                      ))
+                          : [], // 팀 플레이리스트일 경우 빈 리스트 (추후 팀 플레이리스트 목록으로 대체)
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 32),
+          ElevatedButton(
+            onPressed: () {
+              if (_selectedType == PlaylistType.personal) {
+                _showCreatePlaylistDialog(context);
+              } else {
+                _showCreateTeamPlaylistDialog(context);
+              }
+            },
+            child: const Text('생성'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.brown,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -548,11 +552,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
             ),
             TextButton(
               child: const Text('생성'),
-              onPressed: () {
+              onPressed: () async {  // async 추가
                 if (controller.text.isNotEmpty) {
-                  _createPlaylist(context, controller.text);
+                  Navigator.of(context).pop();  // 다이얼로그를 먼저 닫음
+                  await _createPlaylist(context, controller.text);  // await 추가
                 }
-                Navigator.of(context).pop();
               },
             ),
           ],
@@ -560,6 +564,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
       },
     );
   }
+
 
   Future<void> _createPlaylist(BuildContext context, String playlistName) async {
     if (accessToken == null) {
@@ -570,15 +575,28 @@ class _PlaylistPageState extends State<PlaylistPage> {
     }
 
     try {
+      // await를 추가하여 생성이 완료될 때까지 대기
       final playlist = await _playlistService.createPlaylist(accessToken!, playlistName);
+
+      // 성공 메시지를 먼저 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플레이리스트 "${playlist.name}"가 생성되었습니다.')),
+          SnackBar(content: Text('플레이리스트 "${playlistName}"가 생성되었습니다')),
         );
+      }
+
+      // 새로고침을 별도로 처리
+      if (mounted) {
         setState(() {
+          // 새로 생성된 플레이리스트를 목록 맨 앞에 추가
           _playlists.insert(0, playlist);
+          // 새로 생성된 플레이리스트를 선택
+          _selectedPlaylistId = playlist.playlistId;
+          // 음악 목록 로드
+          _loadPlaylistMusics();
         });
       }
+
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -587,6 +605,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
       }
     }
   }
+
   Future<void> _showDeletePlaylistDialog(PlaylistPreViewDto playlist) async {
     return showDialog<void>(
       context: context,
@@ -695,6 +714,96 @@ class _PlaylistPageState extends State<PlaylistPage> {
       },
     );
   }
+// 팀 플레이리스트 생성 다이얼로그
+  Future<void> _showCreateTeamPlaylistDialog(BuildContext context) async {
+    final TextEditingController controller = TextEditingController();
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('새 팀 플레이리스트'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(hintText: "플레이리스트 이름을 입력하세요"),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('생성'),
+              onPressed: () {
+                if (controller.text.isNotEmpty) {
+                  _createTeamPlaylist(context, controller.text);
+                }
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+// 팀 플레이리스트 생성 메서드 (API 연동 필요)
+  Future<void> _createTeamPlaylist(BuildContext context, String playlistName) async {
+    if (accessToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다')),
+      );
+      return;
+    }
+
+    try {
+      // TODO: 팀 플레이리스트 생성 API 호출
+      // final playlist = await _playlistService.createTeamPlaylist(accessToken!, playlistName);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('팀 플레이리스트 생성 기능은 준비중입니다.')),
+        );
+        await _refreshPlaylists();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('팀 플레이리스트 생성 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _refreshPlaylists() async {
+    if (accessToken == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final playlistList = await _playlistService.getPlaylistPreViewList(accessToken!);
+      setState(() {
+        _playlists = playlistList.playlistPreviewList;
+        _isLoading = false;
+
+        // 개인 플레이리스트이고 플레이리스트가 있을 경우 첫 번째 항목 자동 선택
+        if (_selectedType == PlaylistType.personal && _playlists.isNotEmpty) {
+          _selectedPlaylistId = _playlists.first.playlistId;
+          _loadPlaylistMusics();
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플레이리스트를 불러오는데 실패했습니다: $e')),
+        );
+      }
+    }
+  }
 }
 
