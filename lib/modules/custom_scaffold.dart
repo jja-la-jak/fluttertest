@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/config/environment.dart';
 import 'package:flutter_project/screens/playlist_page.dart';
 import 'package:flutter_project/screens/chatting_page.dart';
 import 'package:flutter_project/modules/search_music.dart';
-import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import 'package:flutter_project/services/token_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -10,6 +10,11 @@ import 'package:flutter_project/screens/youtube_player_screen.dart';
 import 'package:flutter_project/screens/ranking_page.dart';
 import 'package:flutter_project/screens/userinfo_page.dart';
 import 'package:flutter_project/service/music_service.dart';
+
+import '../service/playlist_service.dart';
+import '../service/team_playlist_service.dart';
+
+enum PlaylistType { personal, team }
 
 class CustomScaffold extends StatefulWidget {
   final Widget body;
@@ -28,12 +33,10 @@ class CustomScaffold extends StatefulWidget {
 }
 
 class _CustomScaffoldState extends State<CustomScaffold> {
+  PlaylistType _selectedType = PlaylistType.personal;
   static const double _kAppBarHeight = 56.0;
   static const double _kBottomNavBarHeight = 60.0;
-  static const double _kIconSize = 36.0;
   static const double _kSearchBarBorderRadius = 20.0;
-  static const double _kSearchIconPadding = 8.0;
-  DateTime? _lastBackPressTime;
   Map<String, dynamic>? _userInfo;
 
   final TextEditingController _searchController = TextEditingController();
@@ -41,30 +44,50 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   bool _isSearching = false;
   bool _showResults = false;
 
+  late PlaylistService _playlistService;
+  late TeamPlaylistApiService _teamPlaylistApiService;
+  TeamPlaylistCollaborationService? _collaborationService;
+  String? _accessToken;
+
   @override
   void initState() {
     super.initState();
-    _fetchUserInfo();
+    _initializeServices();
   }
+
+  // 새로 추가된 초기화 메서드
+  Future<void> _initializeServices() async {
+    final TokenStorage tokenStorage = TokenStorage();
+    _accessToken = await tokenStorage.getAccessToken();
+
+    if (_accessToken != null) {
+      setState(() {
+        _playlistService = PlaylistService();
+        _teamPlaylistApiService = TeamPlaylistApiService(accessToken: _accessToken);
+        _collaborationService = TeamPlaylistCollaborationService(accessToken: _accessToken!);
+      });
+      _fetchUserInfo();
+    }
+  }
+
+
   @override
   void dispose() {
     _searchController.dispose();
+    _collaborationService?.dispose();
     super.dispose();
   }
 
   Future<void> _fetchUserInfo() async {
-    final TokenStorage tokenStorage = TokenStorage();
-    final String? accessToken = await tokenStorage.getAccessToken();
-
-    if (accessToken == null) {
+    if (_accessToken == null) {
       return;
     }
 
     try {
       final response = await http.get(
-        Uri.parse('https://gnumusic.shop/api/users/me'),
+        Uri.parse('${Environment.apiUrl}/api/users/me'),
         headers: {
-          'Authorization': 'Bearer $accessToken',
+          'Authorization': 'Bearer $_accessToken',
           'Content-Type': 'application/json',
         },
       );
@@ -206,62 +229,94 @@ class _CustomScaffoldState extends State<CustomScaffold> {
       return;
     }
 
-    try {
-      final response = await http.get(
-        Uri.parse('https://gnumusic.shop/api/playlists'),
-        headers: {
-          'Authorization': 'Bearer $accessToken',
-          'Content-Type': 'application/json',
-        },
-      );
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('플레이리스트 선택'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SegmentedButton<PlaylistType>(
+                    segments: const [
+                      ButtonSegment(
+                        value: PlaylistType.personal,
+                        label: Text('개인 플레이리스트'),
+                      ),
+                      ButtonSegment(
+                        value: PlaylistType.team,
+                        label: Text('팀 플레이리스트'),
+                      ),
+                    ],
+                    selected: {_selectedType},
+                    onSelectionChanged: (Set<PlaylistType> selected) {
+                      setState(() {
+                        _selectedType = selected.first;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  FutureBuilder<dynamic>(
+                    future: _selectedType == PlaylistType.personal
+                        ? _loadPersonalPlaylists(accessToken)
+                        : _loadTeamPlaylists(accessToken),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const CircularProgressIndicator();
+                      }
 
-      if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
-        if (jsonResponse['isSuccess']) {
-          final playlists = jsonResponse['result']['playlistPreviewList'] as List;
+                      if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      }
 
-          if (!mounted) return;
+                      if (!snapshot.hasData || snapshot.data.isEmpty) {
+                        return const Text('플레이리스트가 없습니다');
+                      }
 
-          showDialog(
-            context: context,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: const Text('플레이리스트 선택'),
-                content: SizedBox(
-                  width: double.maxFinite,
-                  child: ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: playlists.length,
-                    itemBuilder: (context, index) {
-                      final playlist = playlists[index];
-                      return ListTile(
-                        title: Text(playlist['name']),
-                        onTap: () {
-                          Navigator.pop(context);
-                          _addMusicToPlaylist(playlist['playlistId'], music.id);
-                        },
+                      final playlists = snapshot.data;
+                      return SizedBox(
+                        width: double.maxFinite,
+                        height: 300,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: playlists.length,
+                          itemBuilder: (context, index) {
+                            final playlist = playlists[index];
+
+                            print(playlists.runtimeType);
+                            print(index.runtimeType);
+                            print(playlist.runtimeType);
+                            return ListTile(
+                              title: Text(playlist.name),
+                              onTap: () {
+                                Navigator.pop(context);
+                                _selectedType == PlaylistType.personal
+                                    ? _addMusicToPlaylist(playlist.playlistId, music.id)
+                                    : _addMusicToTeamPlaylist(playlist.teamPlaylistId, music.id);
+                              },
+                            );
+                          },
+                        ),
                       );
                     },
                   ),
-                ),
-                actions: [
-                  TextButton(
-                    child: const Text('취소'),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                  ),
                 ],
-              );
-            },
-          );
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('플레이리스트를 불러오는데 실패했습니다: $e')),
-      );
-    }
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('취소'),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
 // 플레이리스트에 음악을 추가하는 메서드
@@ -278,7 +333,7 @@ class _CustomScaffoldState extends State<CustomScaffold> {
 
     try {
       final response = await http.post(
-        Uri.parse('https://gnumusic.shop/api/playlists/$playlistId/musics'),
+        Uri.parse('${Environment.apiUrl}/playlists/$playlistId/musics'),
         headers: {
           'Authorization': 'Bearer $accessToken',
           'Content-Type': 'application/json',
@@ -286,32 +341,31 @@ class _CustomScaffoldState extends State<CustomScaffold> {
         body: jsonEncode({'musicId': musicId}),
       );
 
+      final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
       if (response.statusCode == 200) {
-        final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
         if (jsonResponse['isSuccess']) {
-          //print('musicid: $musicId');
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('음악이 플레이리스트에 추가되었습니다')),
           );
-        } else {
-          String errorMessage;
-          switch(jsonResponse['code']) {
-            case 'PLAYLIST4001':
-              errorMessage = '플레이리스트를 찾을 수 없습니다';
-              break;
-            case 'MUSIC4001':
-              errorMessage = '음악을 찾을 수 없습니다';
-              break;
-            case 'PLAYLIST4002':
-              errorMessage = '이미 플레이리스트에 존재하는 음악입니다';
-              break;
-            default:
-              errorMessage = jsonResponse['message'];
-          }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage)),
-          );
         }
+      } else {
+        String errorMessage;
+        switch(jsonResponse['code']) {
+          case 'PLAYLIST4001':
+            errorMessage = '플레이리스트를 찾을 수 없습니다';
+            break;
+          case 'MUSIC4001':
+            errorMessage = '음악을 찾을 수 없습니다';
+            break;
+          case 'PLAYLIST4002':
+            errorMessage = '이미 플레이리스트에 존재하는 음악입니다';
+            break;
+          default:
+            errorMessage = jsonResponse['message'];
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -538,6 +592,49 @@ class _CustomScaffoldState extends State<CustomScaffold> {
         ),
       ),
     );
+  }
+
+  Future<List<dynamic>> _loadPersonalPlaylists(String accessToken) async {
+    try {
+      final playlistPreViewList = await _playlistService.getPlaylistPreViewList(accessToken);
+      return playlistPreViewList.playlistPreviewList;
+    } catch (e) {
+      throw Exception('Failed to load playlists: $e');
+    }
+  }
+
+  Future<List<dynamic>> _loadTeamPlaylists(String accessToken) async {
+    try {
+      final teamPlaylistPreViewList = await _teamPlaylistApiService.getTeamPlaylistPreViewList();
+      return teamPlaylistPreViewList.teamPlaylistPreviewList;
+    } catch (e) {
+      throw Exception('Failed to load playlists: $e');
+    }
+  }
+
+  Future<void> _addMusicToTeamPlaylist(int teamPlaylistId, int musicId) async {
+    final TokenStorage tokenStorage = TokenStorage();
+    final String? accessToken = await tokenStorage.getAccessToken();
+
+    if (accessToken == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다')),
+      );
+      return;
+    }
+
+    try {
+      _collaborationService ??= TeamPlaylistCollaborationService(accessToken: accessToken);
+      await _collaborationService!.addTeamPlaylistMusics(teamPlaylistId, musicId);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('음악이 팀 플레이리스트에 추가되었습니다')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('음악 추가에 실패했습니다: $e')),
+      );
+    }
   }
 }
 
