@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_project/modules/api_response.dart';
 
+import '../config/environment.dart';
+
 class UserService {
   final FlutterSecureStorage _secureStorage = FlutterSecureStorage();
-  final String _baseUrl = 'https://gnumusic.shop';
+  final String _baseUrl = Environment.apiUrl.replaceAll('/api', '');
 
   Future<String> _getAccessToken() async {
     return await _secureStorage.read(key: 'access_token') ?? '';
