@@ -1,10 +1,11 @@
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../modules/playlist_models.dart';
 import '../services/token_storage.dart';
 
 class PlaylistService {
-  static const String baseUrl = 'https://gnumusic.shop/api';
+  static String baseUrl = Environment.apiUrl;
   final TokenStorage _tokenStorage = TokenStorage();
   String? accessToken;
   PlaylistService({this.accessToken});
@@ -21,7 +22,7 @@ class PlaylistService {
     );
 
 
-    if (response.statusCode == 201) {
+    if (response.statusCode >= 200 && response.statusCode < 300) {
       final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
       if (jsonResponse['isSuccess']) {
         return PlaylistPreViewDto.fromJson(jsonResponse['result']);
@@ -103,7 +104,7 @@ class PlaylistService {
   Future<void> deletePlaylistMusics(String accessToken,int playlistId, List<int> musicIds) async {
     print('playlistId : $playlistId');
     print('musiclist : $musicIds');
-    final url = Uri.parse('https://gnumusic.shop/api/playlists/$playlistId/musics');
+    final url = Uri.parse('$baseUrl/playlists/$playlistId/musics');
     final headers = {
       'Authorization': 'Bearer $accessToken',
       'Content-Type': 'application/json',
@@ -202,7 +203,7 @@ class PlaylistService {
 
   Future<void> updatePlaylistTitle(String accessToken, int playlistId, String newTitle) async {
     final url = Uri.parse(
-        'https://gnumusic.shop/api/playlists/$playlistId/title');
+        '$baseUrl/playlists/$playlistId/title');
     final headers = {
       'Authorization': 'Bearer $accessToken',
       'Content-Type': 'application/json',
@@ -240,7 +241,7 @@ class PlaylistService {
   }
 
   Future<void> updatePlaylistOrder(String accessToken, int playlistId, List<Map<String, dynamic>> updateMusic) async {
-    final url = Uri.parse('https://gnumusic.shop/api/playlists/$playlistId/order');
+    final url = Uri.parse('$baseUrl/playlists/$playlistId/order');
     final headers = {
       'Authorization': 'Bearer $accessToken',
       'Content-Type': 'application/json',
