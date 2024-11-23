@@ -1,6 +1,8 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
+import '../config/environment.dart';
+
 class MusicService {
   static Future<int> getMusicIdFromUrl(String youtubeUrl) async {
     try {
@@ -21,7 +23,7 @@ class MusicService {
 
   static Future<Music> increaseViewCount(int id) async {
     final response = await http.post(
-      Uri.parse('https://gnumusic.shop/api/musics/$id/views'),
+      Uri.parse('${Environment.apiUrl}/musics/$id/views'),
     );
     if (response.statusCode == 200) {
       final jsonResponse = jsonDecode(response.body);
