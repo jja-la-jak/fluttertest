@@ -3,6 +3,7 @@ import 'package:flutter_project/config/environment.dart';
 import 'package:flutter_project/screens/playlist_page.dart';
 import 'package:flutter_project/screens/chatting_page.dart';
 import 'package:flutter_project/modules/search_music.dart';
+import 'package:flutter_project/screens/notification_page.dart'; // 알림 화면 추가
 import 'package:flutter_project/services/token_storage.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -49,10 +50,13 @@ class _CustomScaffoldState extends State<CustomScaffold> {
   TeamPlaylistCollaborationService? _collaborationService;
   String? _accessToken;
 
+  int _unreadNotificationCount = 0; // 읽지 않은 알림 개수
+
   @override
   void initState() {
     super.initState();
     _initializeServices();
+    _fetchUnreadNotificationCount(); // 알림 개수 조회
   }
 
   // 새로 추가된 초기화 메서드
@@ -102,6 +106,35 @@ class _CustomScaffoldState extends State<CustomScaffold> {
       }
     } catch (e) {
       print('사용자 정보 불러오기 실패: $e');
+    }
+  }
+
+  Future<void> _fetchUnreadNotificationCount() async {
+    final TokenStorage tokenStorage = TokenStorage();
+    final String? accessToken = await tokenStorage.getAccessToken();
+
+    if (accessToken == null) {
+      return;
+    }
+
+    try {
+      final response = await http.get(
+        Uri.parse('${Environment.apiUrl}/api/notify/count'),
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(response.body);
+        if (jsonResponse['isSuccess']) {
+          setState(() {
+            _unreadNotificationCount = jsonResponse['result'];
+          });
+        }
+      }
+    } catch (e) {
+      print('알림 개수 조회 실패: $e');
     }
   }
 
@@ -463,33 +496,50 @@ class _CustomScaffoldState extends State<CustomScaffold> {
 
   List<Widget> _buildAppBarActions() {
     return [
-      GestureDetector(
-        onTap: () {
-          Navigator.pushReplacement(
+      Stack(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.notifications, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificationPage()),
+              );
+            },
+          ),
+          if (_unreadNotificationCount > 0)
+            Positioned(
+              right: 8,
+              top: 8,
+              child: CircleAvatar(
+                radius: 10,
+                backgroundColor: Colors.red,
+                child: Text(
+                  '$_unreadNotificationCount',
+                  style: const TextStyle(fontSize: 12, color: Colors.white),
+                ),
+              ),
+            ),
+        ],
+      ),
+      IconButton(
+        icon: _userInfo?.containsKey('profileImage') == true && _userInfo!['profileImage'] != null
+            ? CircleAvatar(
+          radius: 18,
+          backgroundImage: NetworkImage(_userInfo!['profileImage']),
+        )
+            : const CircleAvatar(
+          radius: 18,
+          backgroundImage: AssetImage('assets/profile.png'),
+          backgroundColor: Colors.transparent,
+        ),
+        onPressed: () {
+          Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const UserInfoPage()),
           );
         },
-        child: IconButton(
-          icon: _userInfo?.containsKey('profileImage') == true && _userInfo!['profileImage'] != null
-              ? CircleAvatar(
-            radius: 18,
-            backgroundImage: NetworkImage(_userInfo!['profileImage']),
-          )
-              : const CircleAvatar(
-            radius: 18,
-            backgroundImage: AssetImage('assets/profile.png'),
-            backgroundColor: Colors.transparent,
-          ),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const UserInfoPage()),
-            );
-          },
-        ),
       ),
-      _buildCircleAvatarButton('assets/image/menu.png', 1),
     ];
   }
 
@@ -637,4 +687,3 @@ class _CustomScaffoldState extends State<CustomScaffold> {
     }
   }
 }
-
