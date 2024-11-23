@@ -1,3 +1,4 @@
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -8,7 +9,7 @@ Future<List<Music>> searchMusic(String query, {String type = 'title'}) async {
   final encodedQuery = Uri.encodeQueryComponent(query);
 
   final response = await http.get(
-    Uri.parse('https://gnumusic.shop/api/musics?query=$encodedQuery&type=$type'),
+    Uri.parse('${Environment.apiUrl}/musics?query=$encodedQuery&type=$type'),
     headers: {
       'Content-Type': 'application/json; charset=UTF-8',
       'Accept': 'application/json',
