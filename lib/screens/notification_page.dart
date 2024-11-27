@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/token_storage.dart';
+import 'package:intl/intl.dart';
 
 class NotificationPage extends StatefulWidget {
   const NotificationPage({Key? key}) : super(key: key);
@@ -27,7 +29,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://gnumusic.shop/api/notify'),
+        Uri.parse('${Environment.apiUrl}/notify'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -71,7 +73,7 @@ class _NotificationPageState extends State<NotificationPage> {
 
     try {
       final response = await http.delete(
-        Uri.parse('https://gnumusic.shop/api/notify/$notifyId'),
+        Uri.parse('${Environment.apiUrl}/notify/$notifyId'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -144,6 +146,10 @@ class _NotificationPageState extends State<NotificationPage> {
           itemCount: _notifications.length,
           itemBuilder: (context, index) {
             final notification = _notifications[index];
+            // 날짜 포맷 적용
+            final createdAt = DateTime.parse(notification['createdAt']);
+            final formattedDate = DateFormat('yyyy-MM-dd HH:mm').format(createdAt);
+
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               shape: RoundedRectangleBorder(
@@ -159,7 +165,10 @@ class _NotificationPageState extends State<NotificationPage> {
                   notification['content'],
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                subtitle: Text(notification['notifyType']),
+                subtitle: Text(
+                  "받은 시간: $formattedDate",
+                  style: const TextStyle(color: Colors.black54),
+                ),
                 trailing: IconButton(
                   icon: const Icon(Icons.delete, color: Colors.red),
                   onPressed: () {

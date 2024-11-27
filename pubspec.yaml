@@ -37,6 +37,7 @@ dependencies:
   provider: ^6.0.1
   uuid: ^4.4.2
   stomp_dart_client: ^2.1.0
+  intl: 0.19.0
 
 
 

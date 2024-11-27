@@ -173,11 +173,65 @@ class TeamPlaylistApiService {
   void setAccessToken(String s) {
     accessToken = s;
   }
+
+  inviteMember(int i, String text) {}
+
+  Future<List<TeamPlaylistMemberDto>> getTeamPlaylistMembers(int teamPlaylistId) async {
+    final url = Uri.parse('$baseUrl/teamPlaylists/$teamPlaylistId/members');
+    final headers = {
+      'Authorization': 'Bearer $accessToken',
+      'Content-Type': 'application/json',
+    };
+
+    try {
+      final response = await http.get(url, headers: headers);
+
+      if (response.statusCode == 200) {
+        final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
+
+        if (jsonResponse['isSuccess']) {
+          final memberMap = jsonResponse['result']['memberMap'] as Map<String, dynamic>;
+          List<TeamPlaylistMemberDto> allMembers = [];
+
+          // ADMIN 멤버 먼저 추가
+          if (memberMap.containsKey('ADMIN')) {
+            allMembers.addAll(
+                (memberMap['ADMIN'] as List)
+                    .map((member) => TeamPlaylistMemberDto.fromJson(member))
+            );
+          }
+
+          // MEMBER 멤버 추가
+          if (memberMap.containsKey('MEMBER')) {
+            allMembers.addAll(
+                (memberMap['MEMBER'] as List)
+                    .map((member) => TeamPlaylistMemberDto.fromJson(member))
+            );
+          }
+
+          return allMembers;
+        } else {
+          _handleError(jsonResponse['code'], jsonResponse['message']);
+        }
+      }
+
+      throw Exception('Failed to load team members');
+    } catch (e) {
+      print('Error getting team members: $e');
+      rethrow;
+    }
+  }
+
+  inviteTeamPlaylistMember({required int teamId, required String email}) {}
+
+  removeTeamPlaylistMember({required int teamPlaylistId, required int memberId}) {}
+
+  updateTeamPlaylistMemberRole({required int teamPlaylistId, required int memberId, required bool isAdmin}) {}
 }
 
 class TeamPlaylistCollaborationService {
   static String wsUrl = Environment.wsUrl;
-  final String accessToken;
+  final String? accessToken;
   final TeamPlaylistApiService _apiService;
   late LWWMap<TeamPlaylistMusicDto> _musicMap;
   StompClient? stompClient;
@@ -383,4 +437,8 @@ class TeamPlaylistCollaborationService {
   void _updateConnectionState(bool connected) {
     _connectionStateController.add(connected);
   }
+
+  inviteFriend({required int teamPlaylistId, required int friendId}) {}
+
+  getFriends() {}
 }

@@ -1,13 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_project/service/team_playlist_service.dart';
 import '../modules/custom_scaffold.dart';
 import '../modules/playlist_models.dart';
 import '../modules/team_playlist_models.dart';
+import '../service/team_playlist_service.dart';
 import '../service/playlist_service.dart';
 import '../services/token_storage.dart';
-import 'package:flutter_project/screens/youtube_player_screen.dart';
+import '../screens/team_management_page.dart';
+import '../screens/youtube_player_screen.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 enum PlaylistType {personal, team}
@@ -76,15 +77,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
       setState(() {
         _teamPlaylistMusicsFuture = Future.value(musics);
       });
-    });
-
-    _collaborationService.connectionState.listen((connected) {
-      if (!connected && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('실시간 연결이 끊어졌습니다. 재연결을 시도합니다.')),
-        );
-        _collaborationService.reconnect(playlistId);
-      }
     });
   }
 
@@ -493,13 +485,45 @@ class _PlaylistPageState extends State<PlaylistPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      if (_isEditMode)
-                        TextButton(
-                          onPressed: _selectedType == PlaylistType.personal
-                              ? _deleteSelectedMusics
-                              : _deleteSelectedTeamMusics,
-                          child: const Text('삭제', style: TextStyle(color: Colors.red)),
-                        ),
+                      Row(
+                        children: [
+                          if(_selectedType == PlaylistType.team)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  if (_selectedPlaylistId != null) {  // null 체크
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => TeamManagementPage(
+                                          teamPlaylistId: _selectedPlaylistId!,
+                                        ),
+                                      ),
+                                    );
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('플레이리스트를 선택해주세요')),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Icons.group),
+                                label: const Text('팀원 관리'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.brown[300],
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          if (_isEditMode)
+                            TextButton(
+                              onPressed: _selectedType == PlaylistType.personal
+                                  ? _deleteSelectedMusics
+                                  : _deleteSelectedTeamMusics,
+                              child: const Text('삭제', style: TextStyle(color: Colors.red)),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                   Row(
@@ -565,8 +589,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   final music = musicList[index];
                   return ListTile(
                     leading: CircleAvatar(
+                      backgroundImage: NetworkImage(music.thumbnail),
                       backgroundColor: Colors.brown.shade200,
-                      child: Text('${index + 1}'),
                     ),
                     title: Text(music.title),
                     subtitle: Text(music.artist),
@@ -586,6 +610,66 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   );
                 },
               ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showInviteMemberDialog(BuildContext context) async {
+    final TextEditingController controller = TextEditingController();
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('팀원 초대'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('초대할 사용자의 이메일을 입력하세요'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  hintText: "이메일 주소",
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('초대'),
+              onPressed: () async {
+                if (controller.text.isNotEmpty && _selectedPlaylistId != null) {
+                  try {
+                    await _teamPlaylistApiService.inviteMember(
+                      _selectedPlaylistId!,
+                      controller.text,
+                    );
+                    Navigator.of(context).pop();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('${controller.text}님을 초대했습니다')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('초대 실패: $e')),
+                      );
+                    }
+                  }
+                }
+              },
             ),
           ],
         );

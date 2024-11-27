@@ -1,7 +1,6 @@
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
-import '../config/environment.dart';
 
 class MusicService {
   static Future<int> getMusicIdFromUrl(String youtubeUrl) async {
@@ -44,6 +43,7 @@ class Music {
   final String artist;
   final String url;
   final int viewCount;
+  final String thumbnail;
 
   Music({
     required this.id,
@@ -51,6 +51,7 @@ class Music {
     required this.artist,
     required this.url,
     required this.viewCount,
+    required this.thumbnail,
   });
 
   factory Music.fromJson(Map<String, dynamic> json) {
@@ -60,6 +61,7 @@ class Music {
       artist: json['artist'],
       url: json['url'],
       viewCount: json['viewCount'],
+      thumbnail: json['thumbnail'],
     );
   }
 }

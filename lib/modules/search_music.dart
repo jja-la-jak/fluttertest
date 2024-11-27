@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_project/service/music_service.dart';
 
-Future<List<Music>> searchMusic(String query, {String type = 'title'}) async {
+Future<List<Music>> searchMusic(String query, {String type = 'string'}) async {
   // URL 인코딩 수정
   final encodedQuery = Uri.encodeQueryComponent(query);
 

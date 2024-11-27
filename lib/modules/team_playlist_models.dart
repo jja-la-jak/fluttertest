@@ -7,9 +7,9 @@ class TeamPlaylistPreViewListDto {
 
   factory TeamPlaylistPreViewListDto.fromJson(Map<String, dynamic> json) {
     return TeamPlaylistPreViewListDto(
-      teamPlaylistPreviewList: (json['teamPlaylistPreviewList'] as List)
-          .map((i) => TeamPlaylistPreViewDto.fromJson(i))
-          .toList()
+        teamPlaylistPreviewList: (json['teamPlaylistPreviewList'] as List)
+            .map((i) => TeamPlaylistPreViewDto.fromJson(i))
+            .toList()
     );
   }
 
@@ -71,6 +71,7 @@ class TeamPlaylistMusicDto {
   final String artist;
   final String url;
   final int musicOrder;
+  final String thumbnail;
 
   TeamPlaylistMusicDto({
     required this.teamPlaylistMusicMappingId,
@@ -79,6 +80,7 @@ class TeamPlaylistMusicDto {
     required this.artist,
     required this.url,
     required this.musicOrder,
+    required this.thumbnail,
   });
 
   factory TeamPlaylistMusicDto.fromJson(Map<String, dynamic> json) {
@@ -89,6 +91,7 @@ class TeamPlaylistMusicDto {
       artist: json['artist'] ?? '',
       url: json['url'] ?? '',
       musicOrder: json['musicOrder'] ?? 0,
+      thumbnail: json['thumbnail'] ?? '',
     );
   }
 
@@ -99,6 +102,7 @@ class TeamPlaylistMusicDto {
     'artist': artist,
     'url': url,
     'musicOrder': musicOrder,
+    'thumbnail': thumbnail,
   };
 
   TeamPlaylistMusicDto copyWith({
@@ -108,6 +112,7 @@ class TeamPlaylistMusicDto {
     String? artist,
     String? url,
     int? musicOrder,
+    String? thumbnail,
   }) {
     return TeamPlaylistMusicDto(
       teamPlaylistMusicMappingId: teamPlaylistMusicMappingId ?? this.teamPlaylistMusicMappingId,
@@ -116,6 +121,7 @@ class TeamPlaylistMusicDto {
       artist: artist ?? this.artist,
       url: url ?? this.url,
       musicOrder: musicOrder ?? this.musicOrder,
+      thumbnail: thumbnail ?? this.thumbnail,
     );
   }
 }
@@ -150,4 +156,30 @@ class TeamPlaylistDetailDto {
     'createdDate': createdDate.toIso8601String(),
     'playlistMusicList': teamPlaylistMusicList.map((dto) => dto.toJson()).toList(),
   };
+}
+
+class TeamPlaylistMemberDto {
+  final int memberId;
+  final String name;
+  final String email;
+  final String role;  // ADMIN or MEMBER
+
+  TeamPlaylistMemberDto({
+    required this.memberId,
+    required this.name,
+    required this.email,
+    required this.role,
+  });
+
+  // role을 기준으로 isAdmin getter 추가
+  bool get isAdmin => role == 'ADMIN';
+
+  factory TeamPlaylistMemberDto.fromJson(Map<String, dynamic> json) {
+    return TeamPlaylistMemberDto(
+      memberId: json['memberId'],
+      name: json['name'],
+      email: json['email'],
+      role: json['role'],
+    );
+  }
 }

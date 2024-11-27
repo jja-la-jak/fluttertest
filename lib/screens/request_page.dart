@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/token_storage.dart';
@@ -27,8 +28,8 @@ class _RequestPageState extends State<RequestPage> {
     }
 
     final endpoint = widget.type == "sent"
-        ? 'https://gnumusic.shop/api/friends/requests'
-        : 'https://gnumusic.shop/api/friends/requests/received';
+        ? '${Environment.apiUrl}/friends/requests'
+        : '${Environment.apiUrl}/friends/requests/received';
 
     final response = await http.get(
       Uri.parse(endpoint),
@@ -65,7 +66,7 @@ class _RequestPageState extends State<RequestPage> {
     }
 
     final response = await http.delete(
-      Uri.parse('https://gnumusic.shop/api/friends/requests/$requestId/cancel'),
+      Uri.parse('${Environment.apiUrl}/friends/requests/$requestId/cancel'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },
@@ -98,7 +99,7 @@ class _RequestPageState extends State<RequestPage> {
     }
 
     final response = await http.patch(
-      Uri.parse('https://gnumusic.shop/api/friends/requests/$requestId/accept'),
+      Uri.parse('${Environment.apiUrl}/friends/requests/$requestId/accept'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },
@@ -131,7 +132,7 @@ class _RequestPageState extends State<RequestPage> {
     }
 
     final response = await http.delete(
-      Uri.parse('https://gnumusic.shop/api/friends/requests/$requestId/refuse'),
+      Uri.parse('${Environment.apiUrl}/friends/requests/$requestId/refuse'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/config/environment.dart';
 import 'package:flutter_project/modules/custom_scaffold.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -51,7 +52,7 @@ class _RankingState extends State<Ranking> {
 
     try {
       final response = await http.get(
-        Uri.parse('https://gnumusic.shop/api/musicLogs/recentLog?date=$_selectedDuration'),
+        Uri.parse('${Environment.apiUrl}/musicLogs/recentLog?date=$_selectedDuration'),
         headers: {
           'Authorization': 'Bearer $accessToken',
         },
@@ -153,7 +154,7 @@ class _RankingState extends State<Ranking> {
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundImage: NetworkImage(music['url']),
+                            backgroundImage: NetworkImage(music['thumbnail']),
                             backgroundColor: Colors.grey[200],
                           ),
                           title: Text(music['title']),

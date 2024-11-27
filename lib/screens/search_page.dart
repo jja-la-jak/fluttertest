@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../services/token_storage.dart';
@@ -32,7 +33,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     final response = await http.get(
-      Uri.parse('https://gnumusic.shop/api/users/search?type=$_searchType&query=$query'),
+      Uri.parse('${Environment.apiUrl}/users/search?type=$_searchType&query=$query'),
       headers: {
         'Authorization': 'Bearer $accessToken',
       },
@@ -62,7 +63,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     final response = await http.post(
-      Uri.parse('https://gnumusic.shop/api/friends/requests'),
+      Uri.parse('${Environment.apiUrl}/friends/requests'),
       headers: {
         'Authorization': 'Bearer $accessToken',
         'Content-Type': 'application/json',
