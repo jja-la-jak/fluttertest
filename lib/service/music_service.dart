@@ -1,3 +1,4 @@
+import 'package:flutter_project/config/environment.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
@@ -21,7 +22,7 @@ class MusicService {
 
   static Future<Music> increaseViewCount(int id) async {
     final response = await http.post(
-      Uri.parse('https://gnumusic.shop/api/musics/$id/views'),
+      Uri.parse('${Environment.apiUrl}/musics/$id/views'),
     );
     if (response.statusCode == 200) {
       final jsonResponse = jsonDecode(response.body);
@@ -42,6 +43,7 @@ class Music {
   final String artist;
   final String url;
   final int viewCount;
+  final String thumbnail;
 
   Music({
     required this.id,
@@ -49,6 +51,7 @@ class Music {
     required this.artist,
     required this.url,
     required this.viewCount,
+    required this.thumbnail,
   });
 
   factory Music.fromJson(Map<String, dynamic> json) {
@@ -58,6 +61,7 @@ class Music {
       artist: json['artist'],
       url: json['url'],
       viewCount: json['viewCount'],
+      thumbnail: json['thumbnail'],
     );
   }
 }

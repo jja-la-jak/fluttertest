@@ -87,6 +87,7 @@ class PlaylistMusicDto {
   final String artist;
   final String url;
   final int viewCount;
+  final String thumbnail;
 
   PlaylistMusicDto({
     required this.playlistMusicMappingId,
@@ -95,6 +96,7 @@ class PlaylistMusicDto {
     required this.artist,
     required this.url,
     required this.viewCount,
+    required this.thumbnail,
   });
 
   factory PlaylistMusicDto.fromJson(Map<String, dynamic> json) {
@@ -105,6 +107,7 @@ class PlaylistMusicDto {
       artist: json['artist'] ?? '',
       url: json['url'] ?? '',
       viewCount: json['viewCount'] ?? 0,
+      thumbnail: json['thumbnail'] ?? '',
     );
   }
 }

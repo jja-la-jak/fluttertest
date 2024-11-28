@@ -6,6 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_project/modules/api_response.dart';
 import 'package:flutter_project/service/user_service.dart';
 
+import '../config/environment.dart';
+
 class GoogleSignInButton extends StatelessWidget {
   final Function onSignInSuccess;
 
@@ -31,7 +33,7 @@ class GoogleSignInButton extends StatelessWidget {
         print(googleUser);
 
         final response = await http.post(
-          Uri.parse('https://gnumusic.shop/api/auth/google'),
+          Uri.parse('${Environment.apiUrl}/auth/google'),
           headers: {'Content-Type': 'application/json; charset=UTF-8'},
           body: jsonEncode({
             'name': googleUser.displayName,
