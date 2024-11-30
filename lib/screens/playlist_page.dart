@@ -29,7 +29,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
   String? accessToken;
   bool _isLoading = false;
   bool _isEditMode = false;
-  Set<int> _selectedMusicIds = {};
+  final Set<int> _selectedMusicIds = {};
   final TokenStorage _tokenStorage = TokenStorage();
   final PlaylistService _playlistService = PlaylistService();
   late TeamPlaylistApiService _teamPlaylistApiService; // 팀 플레이리스트 서비스 추가
@@ -56,6 +56,26 @@ class _PlaylistPageState extends State<PlaylistPage> {
     }
   }
 
+  String getPlaylistName() {
+    try {
+      if (_selectedType == PlaylistType.personal && _playlists.isNotEmpty) {
+        final playlist = _playlists.firstWhere(
+              (p) => p.playlistId == _selectedPlaylistId,
+          orElse: () => _playlists[0],
+        );
+        return playlist.name;
+      } else if (_selectedType == PlaylistType.team && _teamPlaylists.isNotEmpty) {
+        final playlist = _teamPlaylists.firstWhere(
+              (p) => p.teamPlaylistId == _selectedPlaylistId,
+          orElse: () => _teamPlaylists[0],
+        );
+        return playlist.name;
+      }
+      return '플레이리스트';  // 기본값 반환
+    } catch (e) {
+      return '플레이리스트';  // 에러 발생시 기본값 반환
+    }
+  }
 
   void _loadTeamPlaylistMusics() {
     if (_selectedPlaylistId != null) {
@@ -310,21 +330,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
       }
     }
 
-    void _onPlaylistTypeChanged(PlaylistType newType) {
-      setState(() {
-        _selectedType = newType;
-        _isEditMode = false;
-        _selectedMusicIds.clear();
-        _selectedPlaylistId = null;
-
-        if (newType == PlaylistType.personal) {
-          _collaborationService.disconnect(); // 개인 플레이리스트로 전환시 웹소켓 연결 해제
-          _loadPlaylists();
-        } else {
-          _loadTeamPlaylists();
-        }
-      });
-    }
   }
 
   @override
@@ -362,16 +367,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
     if (_selectedPlaylistId == null) {
       return const Center(child: Text('플레이리스트를 선택해주세요'));
     }
-
-    final selectedPlaylist = _selectedType == PlaylistType.personal
-        ? _playlists.firstWhere(
-          (p) => p.playlistId == _selectedPlaylistId,
-      orElse: () => _playlists.first,
-    )
-        : _teamPlaylists.firstWhere(
-          (p) => p.teamPlaylistId == _selectedPlaylistId,
-      orElse: () => _teamPlaylists.first,
-    );
 
     if (_selectedType == PlaylistType.personal) {
       _loadPlaylistMusics();
@@ -424,49 +419,28 @@ class _PlaylistPageState extends State<PlaylistPage> {
 
         final musicList = snapshot.data ?? [];
 
-        String getPlaylistName() {
-          try {
-            if (_selectedType == PlaylistType.personal && _playlists.isNotEmpty) {
-              final playlist = _playlists.firstWhere(
-                    (p) => p.playlistId == _selectedPlaylistId,
-                orElse: () => _playlists[0],
-              );
-              return playlist.name;
-            } else if (_selectedType == PlaylistType.team && _teamPlaylists.isNotEmpty) {
-              final playlist = _teamPlaylists.firstWhere(
-                    (p) => p.teamPlaylistId == _selectedPlaylistId,
-                orElse: () => _teamPlaylists[0],
-              );
-              return playlist.name;
-            }
-            return '플레이리스트';  // 기본값 반환
-          } catch (e) {
-            return '플레이리스트';  // 에러 발생시 기본값 반환
-          }
-        }
-
-        if (musicList.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '${getPlaylistName()}이(가) 비어있습니다',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('음악 추가 기능은 준비중입니다')),
-                    );
-                  },
-                  child: const Text('음악 추가하기'),
-                ),
-              ],
-            ),
-          );
-        }
+        // if (musicList.isEmpty) {
+        //   return Center(
+        //     child: Column(
+        //       mainAxisAlignment: MainAxisAlignment.center,
+        //       children: [
+        //         Text(
+        //           '${getPlaylistName()}이(가) 비어있습니다',
+        //           style: const TextStyle(fontSize: 16),
+        //         ),
+        //         const SizedBox(height: 16),
+        //         ElevatedButton(
+        //           onPressed: () {
+        //             ScaffoldMessenger.of(context).showSnackBar(
+        //               const SnackBar(content: Text('음악 추가 기능은 준비중입니다')),
+        //             );
+        //           },
+        //           child: const Text('음악 추가하기'),
+        //         ),
+        //       ],
+        //     ),
+        //   );
+        // }
 
         return Column(
           children: [
@@ -478,22 +452,32 @@ class _PlaylistPageState extends State<PlaylistPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        getPlaylistName(),
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Text(
+                            getPlaylistName(),
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (_isEditMode)
+                            IconButton(
+                              icon: const Icon(Icons.close, color: Colors.red),
+                              onPressed: () => _showDeletePlaylistConfirmDialog(context),
+                            ),
+                        ],
                       ),
                       Row(
                         children: [
-                          if(_selectedType == PlaylistType.team)
+                          if(_selectedType == PlaylistType.team && !_isEditMode)
                             Padding(
                               padding: const EdgeInsets.only(right: 8.0),
                               child: ElevatedButton.icon(
-                                onPressed: () {
+                                onPressed: () async
+                                {
                                   if (_selectedPlaylistId != null) {  // null 체크
-                                    Navigator.push(
+                                    final result = await Navigator.push(
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => TeamManagementPage(
@@ -501,6 +485,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
                                         ),
                                       ),
                                     );
+                                    if (result == true) {
+                                      _loadTeamPlaylists();
+                                      setState(() {
+                                        _selectedPlaylistId = null;
+                                      });
+                                    }
+
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(content: Text('플레이리스트를 선택해주세요')),
@@ -617,66 +608,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
     );
   }
 
-  Future<void> _showInviteMemberDialog(BuildContext context) async {
-    final TextEditingController controller = TextEditingController();
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('팀원 초대'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('초대할 사용자의 이메일을 입력하세요'),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  hintText: "이메일 주소",
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-            ],
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('취소'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('초대'),
-              onPressed: () async {
-                if (controller.text.isNotEmpty && _selectedPlaylistId != null) {
-                  try {
-                    await _teamPlaylistApiService.inviteMember(
-                      _selectedPlaylistId!,
-                      controller.text,
-                    );
-                    Navigator.of(context).pop();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('${controller.text}님을 초대했습니다')),
-                      );
-                    }
-                  } catch (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('초대 실패: $e')),
-                      );
-                    }
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildPlaylistDropdown() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -772,11 +703,11 @@ class _PlaylistPageState extends State<PlaylistPage> {
                 _showCreateTeamPlaylistDialog(context);
               }
             },
-            child: const Text('생성'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.brown,
               foregroundColor: Colors.white,
             ),
+            child: const Text('생성'),
           ),
         ],
       ),
@@ -849,6 +780,33 @@ class _PlaylistPageState extends State<PlaylistPage> {
     );
   }
 
+  Future<void> _showDeletePlaylistConfirmDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('플레이리스트 삭제'),
+          content: Text('${getPlaylistName()}을(를) 정말 삭제하시겠습니까?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('삭제', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deletePlaylist();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _createPlaylist(BuildContext context, String playlistName) async {
     if (accessToken == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -867,7 +825,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
       // 성공 메시지를 먼저 표시
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플레이리스트 "${playlistName}"가 생성되었습니다')),
+          SnackBar(content: Text('플레이리스트 "$playlistName"가 생성되었습니다')),
         );
       }
 
@@ -904,7 +862,7 @@ class _PlaylistPageState extends State<PlaylistPage> {
       final teamPlaylist = await _teamPlaylistApiService.createTeamPlaylist(playlistName);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('플레이리스트 "${playlistName}"가 생성되었습니다')),
+          SnackBar(content: Text('플레이리스트 "$playlistName"가 생성되었습니다')),
         );
         await _refreshPlaylists();
       }
@@ -928,6 +886,40 @@ class _PlaylistPageState extends State<PlaylistPage> {
     }
   }
 
+  Future<void> _deletePlaylist() async {
+    if (_selectedPlaylistId == null) return;
+
+    try {
+      if (_selectedType == PlaylistType.personal) {
+        await _playlistService.deletePlaylist(accessToken!, _selectedPlaylistId!);
+      } else {
+        await _teamPlaylistApiService.deleteTeamPlaylist(_selectedPlaylistId!);
+      }
+
+      setState(() {
+        if (_selectedType == PlaylistType.personal) {
+          _playlists.removeWhere((p) => p.playlistId == _selectedPlaylistId);
+        } else {
+          _teamPlaylists.removeWhere((p) => p.teamPlaylistId == _selectedPlaylistId);
+        }
+        _selectedPlaylistId = null;
+        _isEditMode = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('플레이리스트가 삭제되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('플레이리스트 삭제에 실패했습니다: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _refreshPlaylists() async {
     if (accessToken == null) return;
 
@@ -936,11 +928,19 @@ class _PlaylistPageState extends State<PlaylistPage> {
     });
 
     try {
-      final playlistList = await _playlistService.getPlaylistPreViewList(accessToken!);
-      setState(() {
-        _playlists = playlistList.playlistPreviewList;
-        _isLoading = false;
-      });
+      if (_selectedType == PlaylistType.personal) {
+        final playlistList = await _playlistService.getPlaylistPreViewList(accessToken!);
+        setState(() {
+          _playlists = playlistList.playlistPreviewList;
+          _isLoading = false;
+        });
+      } else {
+        final teamPlaylistList = await _teamPlaylistApiService.getTeamPlaylistPreViewList();
+        setState(() {
+          _teamPlaylists = teamPlaylistList.teamPlaylistPreviewList;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
@@ -952,7 +952,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
       }
     }
   }
-
   void _onPlaylistTypeChanged(PlaylistType newType) {
     setState(() {
       _selectedType = newType;
