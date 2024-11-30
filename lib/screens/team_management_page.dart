@@ -30,6 +30,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
   List<FriendDto> _friends = [];
   bool _isLoading = true;
   bool _showInvitePage = false;
+  bool _isCurrentUserAdmin = false;
 
   @override
   void initState() {
@@ -74,9 +75,15 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
       setState(() => _isLoading = true);
       final members = await _teamPlaylistApiService.getTeamPlaylistMembers(widget.teamPlaylistId);
 
+      // 현재 사용자가 관리자인지 확인하는 부분 추가
+      final currentUser = await _getCurrentUser();
+      final isAdmin = members.any((member) =>
+      member.isAdmin && member.email == currentUser['email']);
+
       if (mounted) {
         setState(() {
           _members = members;
+          _isCurrentUserAdmin = isAdmin;
           _isLoading = false;
         });
       }
@@ -96,14 +103,14 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
 
       if (accessToken != null) {
         final response = await http.get(
-          Uri.parse('${Environment.apiUrl}/friends'),
+          Uri.parse('${Environment.apiUrl}/teamPlaylists/${widget.teamPlaylistId}/invitable-members'),
           headers: {'Authorization': 'Bearer $accessToken'},
         );
 
         if (response.statusCode == 200) {
           final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
           if (jsonResponse['isSuccess']) {
-            final friendsList = List<Map<String, dynamic>>.from(jsonResponse['result']['friends']);
+            final friendsList = List<Map<String, dynamic>>.from(jsonResponse['result']['members']);
 
             if (mounted) {
               setState(() {
@@ -111,7 +118,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
                   id: friend['user']['id'],
                   name: friend['user']['name'],
                   email: friend['user']['email'],
-                  isTeamMember: friend['isTeamMember'] ?? false,
+                  invited: friend['invited'],
                 )).toList();
               });
             }
@@ -150,9 +157,9 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
           SizedBox(
             height: 56,
             child: Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,  // 추가
                 children: [
                   const Text(
                     '팀원 목록',
@@ -161,18 +168,21 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      padding: EdgeInsets.zero,
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  if (_isCurrentUserAdmin) ...[
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() => _showInvitePage = true);
+                      },
+                      icon: const Icon(Icons.person_add, size: 20, color: Colors.blue),
+                      label: const Text('팀원 초대', style: TextStyle(color: Colors.blue)),
                     ),
-                    onPressed: () {
-                      setState(() => _showInvitePage = true);
-                    },
-                    icon: const Icon(Icons.person_add, size: 20, color: Colors.blue),
-                    label: const Text('팀원 초대', style: TextStyle(color: Colors.blue)),
-                  ),
+                  ] else ...[
+                    TextButton.icon(
+                      onPressed: _showLeaveConfirmDialog,
+                      icon: const Icon(Icons.exit_to_app, size: 20, color: Colors.red),
+                      label: const Text('나가기', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -274,20 +284,17 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
                     ),
                     title: Text(friend.name),
                     subtitle: Text(friend.email),
-                    trailing: friend.isTeamMember
-                        ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
+                    trailing: friend.invited
+                        ? ElevatedButton(
+                      onPressed: () => _inviteFriend(friend),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[300],
+                        foregroundColor: Colors.black54,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        '팀원',
-                        style: TextStyle(color: Colors.grey),
-                      ),
+                      child: const Text('취소'),
                     )
                         : ElevatedButton(
                       onPressed: () => _inviteFriend(friend),
@@ -298,7 +305,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
                           borderRadius: BorderRadius.circular(20),
                         ),
                       ),
-                      child: Text(friend.invited ? '취소' : '초대'),
+                      child: const Text('초대'),
                     ),
                   ),
                 );
@@ -324,7 +331,12 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
         ),
         title: Text(member.name),
         subtitle: Text(member.email),
-        trailing: member.isAdmin
+        trailing: _isCurrentUserAdmin && !member.isAdmin
+            ? IconButton(
+          icon: const Icon(Icons.more_vert),
+          onPressed: () => _showMemberSettingsDialog(member),
+        )
+            : member.isAdmin
             ? Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
@@ -339,10 +351,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
             ),
           ),
         )
-            : IconButton(
-          icon: const Icon(Icons.more_vert),
-          onPressed: () => _showMemberSettingsDialog(member),
-        ),
+            : null,
       ),
     );
   }
@@ -368,7 +377,7 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.person_remove, color: Colors.red),
-              title: const Text('팀원 삭제', style: TextStyle(color: Colors.red)),
+              title: const Text('팀원 추방하기', style: TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(context);
                 _removeMember(member);
@@ -388,21 +397,35 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
 
   Future<void> _inviteFriend(FriendDto friend) async {
     try {
-      await _collaborationService.inviteFriend(
-        teamPlaylistId: widget.teamPlaylistId,
-        friendId: friend.id,
-      );
-
-      if (mounted) {
-        setState(() => friend.invited = true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${friend.name}님을 초대했습니다')),
+      if (friend.invited) {
+        await _collaborationService.cancelInvite(
+          teamPlaylistId: widget.teamPlaylistId,
+          friendId: friend.id,
         );
+
+        if (mounted) {
+          setState(() => friend.invited = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${friend.name}님의 초대를 취소했습니다')),
+          );
+        }
+      } else {
+        await _collaborationService.inviteFriend(
+          teamPlaylistId: widget.teamPlaylistId,
+          friendId: friend.id,
+        );
+
+        if (mounted) {
+          setState(() => friend.invited = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('${friend.name}님을 초대했습니다')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('초대에 실패했습니다: $e')),
+          SnackBar(content: Text('${friend.invited ? '초대 취소' : '초대'}에 실패했습니다: $e')),
         );
       }
     }
@@ -413,7 +436,6 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
       await _teamPlaylistApiService.updateTeamPlaylistMemberRole(
         teamPlaylistId: widget.teamPlaylistId,
         memberId: member.memberId,
-        isAdmin: !member.isAdmin,
       );
 
       await _loadMembers();
@@ -441,7 +463,11 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
         memberId: member.memberId,
       );
 
-      await _loadMembers();
+      // 팀원 목록과 초대 가능한 친구 목록을 모두 새로고침
+      await Future.wait([
+        _loadMembers(),
+        _loadFriends(),
+      ]);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -457,6 +483,72 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
     }
   }
 
+  Future<void> _showLeaveConfirmDialog() async {
+    return showDialog<void>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('팀 나가기'),
+          content: const Text('정말로 이 팀을 나가시겠습니까?'),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('취소'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('나가기', style: TextStyle(color: Colors.red)),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _leaveTeam();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> _getCurrentUser() async {
+    final accessToken = await _tokenStorage.getAccessToken();
+    final response = await http.get(
+      Uri.parse('${Environment.apiUrl}/users/me'),
+      headers: {'Authorization': 'Bearer $accessToken'},
+    );
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(utf8.decode(response.bodyBytes));
+      return jsonResponse['result'];
+    }
+    throw Exception('Failed to get current user');
+  }
+
+  Future<void> _leaveTeam() async {
+    try {
+      final currentUser = await _getCurrentUser();
+      final currentMember = _members.firstWhere(
+              (member) => member.email == currentUser['email']
+      );
+
+      await _teamPlaylistApiService.removeTeamPlaylistMember(
+        teamPlaylistId: widget.teamPlaylistId,
+        memberId: currentMember.memberId,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop(true); // 팀 관리 페이지 닫기
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('팀을 나갔습니다')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('팀 나가기에 실패했습니다: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return _showInvitePage ? _buildInvitePage() : _buildMainPage();
@@ -464,17 +556,15 @@ class _TeamManagementPageState extends State<TeamManagementPage> {
 }
 
 class FriendDto {
-final int id;
-final String name;
-final String email;
-bool invited;
-final bool isTeamMember;
+  final int id;
+  final String name;
+  final String email;
+  late bool invited;
 
-FriendDto({
-  required this.id,
-  required this.name,
-  required this.email,
-  this.invited = false,
-  this.isTeamMember = false,
-});
+  FriendDto({
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.invited,
+  });
 }
