@@ -142,8 +142,6 @@ class CustomScaffoldState extends State<CustomScaffold> {
           setState(() {
             _unreadNotificationCount = jsonResponse['result'];
           });
-          print("시발시발");
-          print(_unreadNotificationCount);
         }
       }
     } catch (e) {
