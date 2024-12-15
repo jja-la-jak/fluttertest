@@ -222,11 +222,77 @@ class TeamPlaylistApiService {
     }
   }
 
-  inviteTeamPlaylistMember({required int teamId, required String email}) {}
+  Future<void> removeTeamPlaylistMember({
+    required int teamPlaylistId,
+    required int memberId
+  }) async {
+    final url = Uri.parse('$baseUrl/teamPlaylists/$teamPlaylistId/members/$memberId');
 
-  removeTeamPlaylistMember({required int teamPlaylistId, required int memberId}) {}
+    try {
+      final response = await http.delete(
+        url,
+        headers: _headers,
+      );
 
-  updateTeamPlaylistMemberRole({required int teamPlaylistId, required int memberId, required bool isAdmin}) {}
+      if (response.statusCode != 200) {
+        throw Exception('Failed to remove team member: ${response.statusCode}');
+      }
+
+      final jsonResponse = jsonDecode(response.body);
+      if (!jsonResponse['isSuccess']) {
+        _handleError(jsonResponse['code']);
+      }
+    } catch (e) {
+      print('Error removing team member: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> updateTeamPlaylistMemberRole({required int teamPlaylistId, required int memberId}) async {
+    final url = Uri.parse('$baseUrl/teamPlaylists/$teamPlaylistId/members/$memberId/role');
+
+    try {
+      final response = await http.patch(
+        url,
+        headers: _headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete team playlist: ${response.statusCode}');
+      }
+
+      final jsonResponse = jsonDecode(response.body);
+      if (!jsonResponse['isSuccess']) {
+        _handleError(jsonResponse['code']);
+      }
+    } catch (e) {
+      print('Error updating team playlist member role: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTeamPlaylist(int teamPlaylistId) async {
+    final url = Uri.parse('$baseUrl/teamPlaylists/$teamPlaylistId');
+
+    try {
+      final response = await http.delete(
+        url,
+        headers: _headers,
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to delete team playlist: ${response.statusCode}');
+      }
+
+      final jsonResponse = jsonDecode(response.body);
+      if (!jsonResponse['isSuccess']) {
+        _handleError(jsonResponse['code']);
+      }
+    } catch (e) {
+      print('Error deleting team playlist: $e');
+      rethrow;
+    }
+  }
 }
 
 class TeamPlaylistCollaborationService {
@@ -438,7 +504,31 @@ class TeamPlaylistCollaborationService {
     _connectionStateController.add(connected);
   }
 
-  inviteFriend({required int teamPlaylistId, required int friendId}) {}
+  Future<void> inviteFriend({
+    required int teamPlaylistId,
+    required int friendId,
+  }) async {
+    final url = Uri.parse('${Environment.apiUrl}/teamPlaylists/$teamPlaylistId/invitations');
 
-  getFriends() {}
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $accessToken',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'userId': friendId,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception('초대 실패');
+      }
+    } catch (e) {
+      throw Exception('초대 처리 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  cancelInvite({required int teamPlaylistId, required int friendId}) {}
 }

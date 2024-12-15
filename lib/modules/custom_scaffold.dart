@@ -43,7 +43,10 @@ class CustomScaffoldState extends State<CustomScaffold> {
 
   static const double _kAppBarHeight = 56.0;
   static const double _kBottomNavBarHeight = 60.0;
+  static const double _kIconSize = 36.0;
   static const double _kSearchBarBorderRadius = 20.0;
+  static const double _kSearchIconPadding = 8.0;
+  DateTime? _lastBackPressTime;
   Map<String, dynamic>? _userInfo;
 
   final TextEditingController _searchController = TextEditingController();
@@ -142,12 +145,40 @@ class CustomScaffoldState extends State<CustomScaffold> {
           setState(() {
             _unreadNotificationCount = jsonResponse['result'];
           });
-          print("시발시발");
-          print(_unreadNotificationCount);
         }
       }
     } catch (e) {
       print('알림 개수 조회 실패: $e');
+    }
+  }
+
+  Future<void> performSearchWithQuery(String query) async {
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true;
+      _showResults = true;
+      _searchController.text = query; // 검색어 입력란에 자동으로 채우기
+    });
+
+    try {
+      final results = await searchMusic(query, type: "title"); // 검색 API 호출
+      if (!mounted) return;
+
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isSearching = false;
+        _searchResults = [];
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('검색 중 오류가 발생했습니다: $e')),
+      );
     }
   }
 
